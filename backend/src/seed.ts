@@ -77,7 +77,7 @@ const clubMembers = [
   { club_id: 1, user_id: 3, joined_at: '2026-10-20T18:10:00.000Z', steps_this_week: 18200 },
   { club_id: 2, user_id: 2, joined_at: '2026-10-18T12:00:00.000Z', steps_this_week: 31850 },
   { club_id: 2, user_id: 4, joined_at: '2026-10-21T21:45:00.000Z', steps_this_week: 12400 },
-];
+].map((m) => ({ ...m, week_start: '2026-11-02' })); // the Toronto week the fake totals belong to
 
 // last_active_date is a Toronto local date.
 const streaks = [
@@ -125,6 +125,7 @@ type TripSeed = {
   distance_km: number;
   confidence: number | null;
   points_awarded: number;
+  flags?: string[];
 };
 
 const trips: TripSeed[] = [
@@ -138,7 +139,7 @@ const trips: TripSeed[] = [
   // Car trip: allowed, earns nothing, lowers eco score (no scoring logic yet).
   { id: 8, user_id: 4, mode: 'car', started_at: '2026-11-02T14:00:00.000Z', duration_min: 20, path: [P.conestoga, P.uptown, P.fairview], point_count: 12, distance_km: 11.8, confidence: null, points_awarded: 0 },
   // Flagged trip: "bike" at car speed. Confidence below 0.3 earns 0 points (AGENTS.md).
-  { id: 9, user_id: 4, mode: 'bike', started_at: '2026-11-04T15:00:00.000Z', duration_min: 11, path: [P.conestoga, P.uptown, P.midtownKing], point_count: 9, distance_km: 9.0, confidence: 0.2, points_awarded: 0 },
+  { id: 9, user_id: 4, mode: 'bike', started_at: '2026-11-04T15:00:00.000Z', duration_min: 11, path: [P.conestoga, P.uptown, P.midtownKing], point_count: 9, distance_km: 9.0, confidence: 0.2, points_awarded: 0, flags: ['speed_too_high', 'car_like_burst'] },
   { id: 10, user_id: 4, mode: 'walk', started_at: '2026-11-06T20:15:00.000Z', duration_min: 12, path: [P.downtownKitchener, P.victoriaPark], point_count: 8, distance_km: 0.9, confidence: 0.9, points_awarded: 8 },
 ];
 
@@ -230,6 +231,7 @@ db.transaction(() => {
       points_awarded: trip.points_awarded,
       started_at: trip.started_at,
       ended_at: addMinutes(trip.started_at, trip.duration_min),
+      flags: JSON.stringify(trip.flags ?? []),
     });
     for (const p of fakeGpsPoints(trip)) insert('trip_points', { id: ++tripPointId, trip_id: trip.id, ...p });
   }

@@ -31,9 +31,13 @@ CREATE TABLE IF NOT EXISTS trips (
   confidence     REAL,
   points_awarded INTEGER,
   started_at     TEXT    NOT NULL DEFAULT ${NOW},
-  ended_at       TEXT
+  ended_at       TEXT,
+  flags          TEXT    NOT NULL DEFAULT '[]', -- JSON array of scoring flag codes
+  eco_delta      INTEGER NOT NULL DEFAULT 0,    -- eco score change this trip caused
+  trust_delta    REAL    NOT NULL DEFAULT 0     -- trust multiplier change this trip caused
 );
 CREATE INDEX IF NOT EXISTS idx_trips_user ON trips(user_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_trips_user_status ON trips(user_id, status);
 
 CREATE TABLE IF NOT EXISTS trip_points (
   id        INTEGER PRIMARY KEY,
@@ -87,6 +91,7 @@ CREATE TABLE IF NOT EXISTS club_members (
   user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   joined_at       TEXT    NOT NULL DEFAULT ${NOW},
   steps_this_week INTEGER NOT NULL DEFAULT 0,
+  week_start      TEXT, -- Toronto Monday (YYYY-MM-DD) that steps_this_week belongs to
   PRIMARY KEY (club_id, user_id)
 );
 
@@ -117,5 +122,29 @@ export function openDb(path = process.env.DB_PATH ?? DEFAULT_DB_PATH): DB {
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   db.exec(SCHEMA);
+  addMissingColumns(db);
   return db;
+}
+
+// CREATE TABLE IF NOT EXISTS doesn't add columns to tables that already exist.
+// Columns added after the first release are listed here and added on startup,
+// so existing databases keep working without a wipe. Add-only; never drops.
+const ADDED_COLUMNS: Record<string, Record<string, string>> = {
+  trips: {
+    flags: "TEXT NOT NULL DEFAULT '[]'",
+    eco_delta: 'INTEGER NOT NULL DEFAULT 0',
+    trust_delta: 'REAL NOT NULL DEFAULT 0',
+  },
+  club_members: {
+    week_start: 'TEXT',
+  },
+};
+
+function addMissingColumns(db: Database.Database) {
+  for (const [table, columns] of Object.entries(ADDED_COLUMNS)) {
+    const existing = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name));
+    for (const [name, ddl] of Object.entries(columns)) {
+      if (!existing.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${ddl}`);
+    }
+  }
 }

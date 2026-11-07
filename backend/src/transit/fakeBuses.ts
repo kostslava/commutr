@@ -2,7 +2,8 @@
 // running back and forth along real GRT route shapes from the static GTFS.
 // Positions are a function of the current time, so they move between requests.
 
-import { getStaticFeeds, onStaticReload, type LatLng, type StaticFeed } from './staticGtfs.js';
+import { bearingDeg, haversineKm, type LatLng } from '../geo.js';
+import { getStaticFeeds, onStaticReload, type StaticFeed } from './staticGtfs.js';
 import type { Vehicle } from './liveVehicles.js';
 
 // Route short names to simulate. A route listed twice gets two vehicles.
@@ -16,20 +17,6 @@ type FakeLine = {
   cumKm: number[]; // cumulative distance at each path point
   speedKmh: number;
 };
-
-const toRad = (d: number) => (d * Math.PI) / 180;
-
-function haversineKm(a: LatLng, b: LatLng): number {
-  const dLat = toRad(b[0] - a[0]), dLng = toRad(b[1] - a[1]);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(h));
-}
-
-function bearingDeg(a: LatLng, b: LatLng): number {
-  const y = Math.sin(toRad(b[1] - a[1])) * Math.cos(toRad(b[0]));
-  const x = Math.cos(toRad(a[0])) * Math.sin(toRad(b[0])) - Math.sin(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.cos(toRad(b[1] - a[1]));
-  return Math.round(((Math.atan2(y, x) * 180) / Math.PI + 360) % 360);
-}
 
 function buildLine(feed: StaticFeed, shortName: string): FakeLine | null {
   const routeEntry = [...feed.routes].find(([, r]) => r.short_name === shortName);

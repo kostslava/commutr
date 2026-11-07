@@ -38,6 +38,24 @@ export function allStops(): Stop[] {
   return feeds.flatMap((f) => f?.stops ?? []);
 }
 
+/**
+ * Distance in metres from a point to the nearest GRT stop (bus or ION), or null
+ * when no static data is loaded. A plain scan: ~2,300 stops is fast enough.
+ */
+export function nearestStopMeters(lat: number, lng: number): number | null {
+  const stops = allStops();
+  if (stops.length === 0) return null;
+  // Cheap equirectangular distance; accurate to well under 1% at stop-radius scale.
+  const kx = 111_320 * Math.cos((lat * Math.PI) / 180), ky = 110_574;
+  let best = Infinity;
+  for (const s of stops) {
+    const dx = (s.lng - lng) * kx, dy = (s.lat - lat) * ky;
+    const d = dx * dx + dy * dy;
+    if (d < best) best = d;
+  }
+  return Math.sqrt(best);
+}
+
 const cachePath = (url: string) =>
   join(cfg.cacheDir, `feed-${createHash('sha1').update(url).digest('hex').slice(0, 10)}.zip`);
 
