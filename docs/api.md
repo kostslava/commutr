@@ -2,7 +2,7 @@
 
 Owned by the backend (Shahmeer). The frontend agent must not edit this file. If the frontend needs a change, tell your human, who asks the backend owner. See AGENTS.md.
 
-**Status: first draft.** Every endpoint is marked **planned** until it is built. Shapes may still change while an endpoint is planned. Once it is **built**, changes are announced first.
+**Status: every endpoint is built.** Shapes of built endpoints only change after an announcement.
 
 ## Basics
 
@@ -532,29 +532,111 @@ The schedule data refreshes automatically every 24 hours.
 
 ---
 
-## Chatbot
+## Chatbot (the Commutr mascot)
 
-Suggests places to eat that the user can afford with their current points and eco score. If they can't afford any, it suggests a place to walk, bike or ride to. **The chatbot provider is not decided yet**, so only the shape is defined here.
+The mascot answers questions about Commutr and getting around Kitchener-Waterloo, in text and voice.
 
-### `POST /api/chat` — **planned**
+**How a message is answered:**
+- **General questions** ("how do points work") come from a built-in FAQ of about 90 entries, matched on the server with no AI call. These are instant, with `source: "faq"`.
+- **Personal questions** ("how many points do I have", "what can I afford", "why is my reward locked") go to **Gemini with function calling**. Gemini reads the user's points, eco score, streak, rewards and clubs through tools. Gemini never sees the user's name, email, location or ID.
+- **"What should I eat / where should I go"** builds `suggestions` on the server from the demo merchants and rewards:
+  - affordable ones first;
+  - if nothing is affordable, the cheapest one, with how far to walk or bike to earn the difference.
+
+  Gemini words the reply.
+- **If Gemini is slow (over 5 s), down or over its limits,** the reply is a canned message with `source: "fallback"`. **Chat never returns an error because of Gemini.**
+
+**Voice:**
+- **Show the text at once, and play the audio when it's ready.** Every reply has an `audio_url`.
+- Usually the voice is ElevenLabs (`voice: "elevenlabs"`), and the file is ready when the reply arrives.
+- If ElevenLabs is unavailable, `voice` is `"gemini"`. The first request for `audio_url` then generates the audio, which can take a few seconds.
+- If speech fails, that request returns `503`; the text still works. Use `<audio src={base + audio_url}>`, which doesn't need `X-Demo-User`.
+- **Show `attribution` when it isn't null.** It's `"Voice by ElevenLabs"` for ElevenLabs audio.
+
+**Limits per user:** 10 text messages a minute and 100 a day; 4 voice messages a minute and 30 a day. Over the limit returns `429`:
+```json
+{ "error": { "code": "rate_limited", "message": "Too many chat messages. Try again soon." }, "retry_after_sec": 42 }
+```
+
+### `POST /api/chat` — **built**
 
 Request:
 ```json
-{ "message": "Where can I get lunch?" }
+{ "message": "I'm hungry, where should I eat?" }
 ```
+
+`message` is 1–500 characters.
 
 Response `200`:
 ```json
 {
-  "reply": "You have 3200 points and an eco score of 98, so the $25 Maple Loop Coffee card is unlocked. Grand River Dumplings is a 25 minute walk away.",
+  "reply": "You can grab a coffee and pastry at Belmont Bakehouse for 300 points, or a wrap at Uptown Shawarma House!",
+  "source": "gemini",
+  "audio_url": "/api/chat/audio/3f2a…64 hex chars…",
+  "voice": "elevenlabs",
+  "attribution": "Voice by ElevenLabs",
   "suggestions": [
-    { "type": "reward", "reward_id": 4, "merchant_id": 2, "name": "Grand River Dumplings", "lat": 43.451, "lng": -80.4915 },
-    { "type": "destination", "reward_id": null, "merchant_id": null, "name": "Waterloo Park", "lat": 43.466, "lng": -80.53 }
+    {
+      "type": "reward",
+      "reward_id": 6,
+      "merchant_id": 4,
+      "name": "Belmont Bakehouse",
+      "category": "bakery",
+      "reward_title": "Free coffee and pastry",
+      "lat": 43.4436,
+      "lng": -80.5047,
+      "points_cost": 300,
+      "affordable": true,
+      "locked": false,
+      "points_short": 0,
+      "eco_needed": 0,
+      "earn_by_walking_km": null,
+      "earn_by_biking_km": null,
+      "distance_km": 4.2
+    }
   ]
 }
 ```
 
-`type` is `"reward"` for something they can redeem now, or `"destination"` for a place to walk, bike or ride to.
+| Field | Notes |
+|---|---|
+| `source` | `"faq"` (built-in answer), `"gemini"`, or `"fallback"` (Gemini unavailable; a canned or template reply) |
+| `audio_url` | Relative URL of the spoken reply, or `null` if there's nothing to say |
+| `voice` | `"elevenlabs"` (ready now) or `"gemini"` (generated on the first request) |
+| `attribution` | `"Voice by ElevenLabs"`, or `null` |
+| `suggestions` | Only for "where to eat or go" questions, otherwise `[]`. `type: "reward"` means redeemable now. `type: "destination"` means go there and earn the rest: `points_short` points, about `earn_by_walking_km` km of walking or `earn_by_biking_km` km of biking. `distance_km` is measured from the user's saved home, and is `null` without one. |
+
+Errors: `400 validation_error` · `429 rate_limited`.
+
+### `POST /api/chat/voice` — **built**
+
+Request: `multipart/form-data` with one file field, `audio`.
+
+- **Types:** `audio/webm` (Chrome and Firefox recordings), `audio/mp4` / `audio/m4a` (Safari), `audio/wav`, `audio/mpeg`, `audio/ogg`.
+- **Size:** at most **5 MB**.
+- **Length:** at most **30 seconds**. The server checks this for WAV only, from the file header. For other formats it relies on the size limit, so **the frontend must stop recording at 30 s**.
+
+Gemini transcribes the audio word for word, and the transcript is then answered like a typed message.
+
+Response `200`: the same fields as `POST /api/chat`, plus
+```json
+{ "transcript": "how do i earn points" }
+```
+
+- `transcript` is `""` when no speech was heard. The reply then asks the user to try again, with `source: "fallback"`.
+- `transcript` is `null` if transcription failed. The reply suggests typing instead.
+
+Errors: `400 validation_error` (no `audio` field, empty file) · `413 too_large` (over 5 MB) · `413 too_long` (WAV over 30 s) · `415 unsupported_audio` · `429 rate_limited`.
+
+### `GET /api/chat/audio/:id` — **built**
+
+Serves the spoken reply: `audio/mpeg` for ElevenLabs, `audio/wav` for the Gemini voice. It's cached for a long time and is public: no `X-Demo-User` needed, and IDs are unguessable hashes.
+
+| Status | Meaning |
+|---|---|
+| `200` | The audio |
+| `404 not_found` | Unknown ID |
+| `503 audio_unavailable` | Speech generation failed or hit a limit (`Retry-After: 30`). The text reply still works; skip the audio. |
 
 ---
 

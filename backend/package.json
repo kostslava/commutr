@@ -13,9 +13,12 @@
     "seed": "tsx src/seed.ts",
     "test:scoring": "tsx scripts/test-scoring.ts",
     "test:rewards": "tsx scripts/test-rewards-clubs.ts",
-    "test": "npm run test:scoring && npm run test:rewards"
+    "test": "npm run test:scoring && npm run test:rewards && npm run test:chat",
+    "chat:warm": "tsx scripts/chat-warm.ts",
+    "test:chat": "tsx scripts/test-chat.ts"
   },
   "dependencies": {
+    "@google/genai": "^3.0.0",
     "@hono/node-server": "^2.1.6",
     "better-sqlite3": "^13.0.3",
     "csv-parse": "^7.0.3",
