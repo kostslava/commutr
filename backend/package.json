@@ -15,6 +15,9 @@
   "dependencies": {
     "@hono/node-server": "^2.1.6",
     "better-sqlite3": "^13.0.3",
+    "csv-parse": "^7.0.3",
+    "fflate": "^0.8.3",
+    "gtfs-realtime-bindings": "^2.2.0",
     "hono": "^4.13.17"
   },
   "devDependencies": {

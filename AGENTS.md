@@ -23,10 +23,12 @@ Two humans, two AI agents (Claude Code and Codex). Each agent works only in its 
 - Everything must be free or open source.
 
 ## Live transit (real data, GRT)
-- Vehicle positions: http://webapps.regionofwaterloo.ca/api/grt-routes/api/vehiclepositions
-- Trip updates: same path ending in /tripupdates
-- Alerts: same path ending in /alerts
-- Static schedule and stops: https://www.regionofwaterloo.ca/opendatadownloads/GRT_GTFS.zip
+- Base: https://webapps.regionofwaterloo.ca/api/grt-routes/api/ (HTTPS only). Feed 1 = buses, feed 2 = ION light rail.
+- Vehicle positions: vehiclepositions/1 and vehiclepositions/2
+- Trip updates: tripupdates/1 and tripupdates/2
+- Alerts: alerts (no number)
+- Static schedule and stops (GTFS zip): staticfeeds/1 and staticfeeds/2
+- The old URLs are dead: unnumbered /vehiclepositions and /tripupdates are frozen since 2026-02-17, and opendatadownloads/GRT_GTFS.zip returns 404.
 - Feeds are GTFS-realtime (protobuf). Backend parses them and exposes plain JSON to the frontend.
 - Fallback to fake bus data if the feed fails.
 - Shared bike and scooter data (GBFS) is linked at grt.ca/about-grt/open-data.
