@@ -16,7 +16,7 @@ Owned by the backend (Shahmeer). The frontend agent must not edit this file. If 
 
 ### Current user (fake auth)
 
-There is no login yet. Every `/api` request acts as **user 1**, unless it sends:
+There is no login yet. Every `/api` request acts as **user 1**, unless it sends the header below. (The exceptions are the public transit endpoints, which ignore it.)
 
 ```
 X-Demo-User: 3
@@ -36,7 +36,7 @@ Errors always use this shape, with a matching HTTP status:
 |---|---|---|
 | 400 | `bad_demo_user` | `X-Demo-User` is not a positive integer *(built)* |
 | 404 | `user_not_found` | `X-Demo-User` names a user that doesn't exist *(built)* |
-| 400 | `validation_error` | Bad request body or params *(planned)* |
+| 400 | `validation_error` | Bad request body or params *(built for `bbox`; planned elsewhere)* |
 | 404 | `not_found` | Trip, reward or club doesn't exist, or isn't yours *(planned)* |
 
 Endpoint-specific codes are listed with each endpoint.
@@ -297,32 +297,82 @@ Joining a club you're already in is not an error; it also returns `joined: true`
 
 ---
 
-## Live buses (GRT)
+## Transit (GRT buses and ION light rail)
 
-The backend reads GRT's GTFS-realtime feed and returns plain JSON. If the feed fails, it returns fake buses and sets `source` to `"fake"`. The frontend should show a small "simulated" label when that happens.
+These endpoints use real Grand River Transit open data: GTFS-realtime vehicle positions and the static GTFS schedule, for both buses (feed 1) and ION light rail (feed 2, route `301`).
 
-### `GET /api/buses/live` — **planned**
+- **No fake user needed.** They don't depend on the user, so they ignore `X-Demo-User` and work without a seeded database.
+- **Attribution:** both responses include an `attribution` string. Show it on the map, for example in a corner: `"Transit data: Grand River Transit, Region of Waterloo Open Data"`.
+- **Bounding box (optional, both endpoints):** `?bbox=west,south,east,north`, in degrees. That's lng,lat,lng,lat, the same order as MapLibre's `map.getBounds().toArray().flat()`. For example: `?bbox=-80.530,43.460,-80.515,43.472`. A malformed box returns `400 validation_error`.
+
+### `GET /api/buses/live` — **built**
 
 Response `200`:
 ```json
 {
   "source": "live",
-  "updated_at": "2026-11-07T15:02:11.000Z",
+  "updated_at": "2026-11-07T19:35:07.000Z",
+  "attribution": "Transit data: Grand River Transit, Region of Waterloo Open Data",
   "vehicles": [
     {
-      "id": "21053",
+      "id": "20913",
       "route_id": "7",
-      "trip_id": "3561029",
-      "lat": 43.4652,
-      "lng": -80.5226,
-      "bearing": 172,
-      "timestamp": "2026-11-07T15:02:05.000Z"
+      "route_short_name": "7",
+      "headsign": "Fairway Station",
+      "lat": 43.46545,
+      "lng": -80.522453,
+      "bearing": null,
+      "speed": null,
+      "timestamp": "2026-11-07T19:35:34.000Z"
     }
   ]
 }
 ```
 
-`bearing` (degrees) and `trip_id` may be `null`.
+| Field | Notes |
+|---|---|
+| `source` | `"live"` = real GRT positions. `"fake"` = simulated vehicles, because the feed failed. **Show a small "simulated" label when it's `"fake"`.** |
+| `updated_at` | Live: the feed's own timestamp. Fake: when the fake positions were generated. |
+| `id` | Vehicle id (string). Fake vehicles use `"fake-1"`, `"fake-2"`, and so on. |
+| `route_id`, `route_short_name` | For example `"7"`. ION is `"301"`. Can be `null` if the vehicle isn't on a known trip. |
+| `headsign` | Where it's going, for example `"Fairway Station"` or `"301 Fairway"`. Can be `null`. |
+| `bearing` | Degrees, 0 = north, clockwise. **GRT currently doesn't send it, so it's `null` for live vehicles.** Fake vehicles have it. |
+| `speed` | km/h. **GRT currently doesn't send it, so it's `null` for live vehicles.** Fake vehicles have it. |
+| `timestamp` | When this vehicle's position was reported. |
+
+**Behaviour:**
+- The backend caches results for 10 seconds, so polling every 10–15 s is plenty.
+- It returns `"live"` if at least one feed (buses or ION) returned vehicles.
+- It returns `"fake"` (about 8 vehicles moving along real GRT and ION routes) when every feed:
+  - fails,
+  - times out (5 s),
+  - is stale (its timestamp is more than 5 minutes old), or
+  - returns zero vehicles.
+
+  GRT also stops running overnight, so expect `"fake"` then.
+
+### `GET /api/stops` — **built**
+
+Returns every boardable stop: about 2,250 bus stops and 32 ION platforms. Parent "station" entries are left out. The response is about 200 KB without a `bbox`.
+
+Response `200`:
+```json
+{
+  "attribution": "Transit data: Grand River Transit, Region of Waterloo Open Data",
+  "stops": [
+    { "id": "1270", "code": "1270", "name": "Willis Way Station", "lat": 43.46211, "lng": -80.523307 },
+    { "id": "6001", "code": null, "name": "Conestoga Station - Southbound", "lat": 43.498292, "lng": -80.529516 }
+  ]
+}
+```
+
+| Field | Notes |
+|---|---|
+| `id` | GTFS stop id (string) |
+| `code` | The stop number printed on the sign, which riders use. ION platforms have none, so it's `null`. |
+| `name`, `lat`, `lng` | Stop name and position |
+
+The schedule data refreshes automatically every 24 hours.
 
 ---
 
