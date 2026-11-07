@@ -4,11 +4,13 @@ The Commutr mascot is an ElevenLabs live voice agent. Its tools are **server too
 
 The backend side is described in [`docs/api.md`](api.md) under "Live voice agent tools".
 
+For the full click-by-click setup (creating the agent, the system prompt, voice, LLM, testing and the React integration), see [`docs/elevenlabs-agent-setup.md`](elevenlabs-agent-setup.md).
+
 ## 1. Set the shared secret
 
 1. Make a long random secret: `openssl rand -hex 32`
 2. Put it in `backend/.env` as `AGENT_TOOL_SECRET=<the secret>`, then restart the backend. Without it, every agent endpoint returns `503`.
-3. In ElevenLabs, store the same value as a **secret** (Workspace → Secrets) named `commutr_agent_secret`.
+3. In ElevenLabs, create the secret from the first tool's header: add the header `X-Agent-Secret`, set its type to **Secret**, click **Create New Secret**, name it `commutr_agent_secret` and paste the value there (a human does this in the dashboard). Every other tool then picks the same saved secret. (A workspace-level secrets page may also exist; that is UNVERIFIED.)
 4. Each tool then sends it as a header:
 
    | Header | Value |
