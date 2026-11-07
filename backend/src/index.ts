@@ -3,12 +3,18 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { currentUser, type CurrentUserEnv } from './currentUser.js';
 import { openDb } from './db.js';
+import { ALLOW_BACKDATED, tripRoutes } from './routes/trips.js';
 import { transitRoutes } from './routes/transit.js';
 import { initStaticGtfs } from './transit/staticGtfs.js';
 
+const isProduction = process.env.NODE_ENV === 'production';
+if (ALLOW_BACKDATED && isProduction) {
+  throw new Error('SCORING_ALLOW_BACKDATED=1 is a test-only flag and must not be used with NODE_ENV=production');
+}
+if (ALLOW_BACKDATED) console.warn('[trips] TEST MODE: backdated trips allowed (SCORING_ALLOW_BACKDATED=1)');
+
 const db = openDb(); // creates the schema on startup if missing
 await initStaticGtfs(); // GRT static GTFS: disk cache or download (max ~30 s); never throws
-const isProduction = process.env.NODE_ENV === 'production';
 const port = Number(process.env.PORT ?? 8787);
 
 const app = new Hono();
@@ -25,6 +31,7 @@ app.route('/api', transitRoutes);
 // All other app endpoints live under /api and see a (fake) current user. See docs/api.md.
 const api = new Hono<CurrentUserEnv>();
 api.use('*', currentUser(db));
+api.route('/', tripRoutes(db));
 app.route('/api', api);
 
 serve({ fetch: app.fetch, port }, (info) => {

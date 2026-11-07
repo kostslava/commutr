@@ -36,8 +36,8 @@ Errors always use this shape, with a matching HTTP status:
 |---|---|---|
 | 400 | `bad_demo_user` | `X-Demo-User` is not a positive integer *(built)* |
 | 404 | `user_not_found` | `X-Demo-User` names a user that doesn't exist *(built)* |
-| 400 | `validation_error` | Bad request body or params *(built for `bbox`; planned elsewhere)* |
-| 404 | `not_found` | Trip, reward or club doesn't exist, or isn't yours *(planned)* |
+| 400 | `validation_error` | Bad request body or params *(built for trips and `bbox`)* |
+| 404 | `not_found` | Trip, reward or club doesn't exist, or isn't yours *(built for trips)* |
 
 Endpoint-specific codes are listed with each endpoint.
 
@@ -55,13 +55,13 @@ Endpoint-specific codes are listed with each endpoint.
 
 ## Trips
 
-The user picks the mode **before** the trip. While the app is open in the foreground, the frontend sends GPS points in batches. It then finishes the trip, and the backend scores it.
-
-Browsers pause GPS in the background, so points can be sparse. Gaps alone do not reduce confidence. They only count when they come with an impossible position jump.
+The user picks the mode **before** the trip. While the app is open in the foreground, the frontend sends GPS points in batches, then finishes the trip. The backend scores it and updates points, trust, eco score, streak and club steps.
 
 `mode` is one of `"walk" | "bike" | "scooter" | "transit" | "car"`.
 
-### `POST /api/trips` — start a trip — **planned**
+**Sparse points are fine.** Browsers pause GPS in the background, so gaps are expected. A gap alone never lowers confidence. It only counts when the position jumps impossibly far for the time that passed.
+
+### `POST /api/trips` — start a trip — **built**
 
 Request:
 ```json
@@ -70,19 +70,16 @@ Request:
 
 Response `201`:
 ```json
-{
-  "id": 11,
-  "mode": "walk",
-  "status": "active",
-  "started_at": "2026-11-07T14:05:00.000Z"
-}
+{ "id": 11, "mode": "walk", "status": "active", "started_at": "2026-11-07T14:05:00.000Z" }
 ```
 
-Errors: `409 trip_already_active` if the user already has an active trip. The response includes `"active_trip_id"`.
+- The server sets `started_at`. Sending `started_at` returns `400`; it's only accepted in a test-only server mode.
+- Errors: `400 validation_error` for an unknown mode.
+- Errors: `409 trip_already_active` if the user already has an active trip. The response includes `"active_trip_id"`, so the frontend can resume or finish it.
 
-### `POST /api/trips/:id/points` — add GPS points — **planned**
+### `POST /api/trips/:id/points` — add GPS points — **built**
 
-Send points in batches, for example every 10–30 seconds, or whenever the app comes back to the foreground. The array can hold 1 or more points. Points with an older timestamp than ones already stored are still accepted.
+Send batches, for example every 10–30 seconds and whenever the app comes back to the foreground. A batch holds 1 to 500 points, and a trip at most 10,000.
 
 Request:
 ```json
@@ -94,16 +91,23 @@ Request:
 }
 ```
 
-`accuracy` is in metres, as given by the browser's `GeolocationCoordinates.accuracy`. It may be `null`.
+- `accuracy` is in metres, from `GeolocationCoordinates.accuracy`. It may be `null` or left out.
+- `timestamp` is the GPS fix time, from `GeolocationPosition.timestamp` converted to ISO.
+- Points can arrive out of order; the backend sorts them.
 
 Response `200`:
 ```json
-{ "trip_id": 11, "accepted": 2, "total_points": 14 }
+{ "trip_id": 11, "accepted": 2, "rejected": 0, "total_points": 14 }
 ```
 
-Errors: `409 trip_not_active` if the trip is already finished.
+`rejected` counts points that were well-formed but not stored, either because they're timestamped outside the trip or because the trip is full. A point is outside the trip if its time is before the trip start or after the current time, allowing 60 s for clock drift.
 
-### `POST /api/trips/:id/finish` — finish and score a trip — **planned**
+Errors:
+- `400 validation_error`: malformed points (bad lat or lng, a non-ISO timestamp, a negative accuracy) or too many points.
+- `404 not_found`: not your trip.
+- `409 trip_not_active`: the trip is already finished.
+
+### `POST /api/trips/:id/finish` — finish and score a trip — **built**
 
 Request: an empty body `{}`.
 
@@ -116,23 +120,56 @@ Response `200`:
     "status": "finished",
     "started_at": "2026-11-07T14:05:00.000Z",
     "ended_at": "2026-11-07T14:31:00.000Z",
-    "distance_km": 2.1,
-    "confidence": 0.95,
-    "points_awarded": 20,
+    "distance_km": 2.71,
+    "confidence": 1,
+    "points_awarded": 27,
+    "capped": false,
     "flags": []
   },
-  "user": { "points": 3220, "eco_score": 98 },
-  "streak": { "current_days": 6, "longest_days": 12, "last_active_date": "2026-11-07" }
+  "user": { "points": 3227, "eco_score": 99 },
+  "streak": { "current_days": 6, "longest_days": 12, "last_active_date": "2026-11-07" },
+  "steps_added": 3526
 }
 ```
 
-- `confidence` is between 0 and 1. A trip below 0.3 earns 0 points.
-- Car trips earn 0 points and lower the eco score.
-- `flags` lists short codes for the checks that lowered confidence, for example `"speed_too_high"`. The full list will be defined with the scoring logic.
+Errors: `404 not_found` · `409 trip_not_active` (already finished).
 
-Errors: `409 trip_not_active`.
+**How a trip is scored.** Every number below can be tuned in `backend/src/scoring/config.ts`.
 
-### `GET /api/trips?limit=20` — my trips, newest first — **planned**
+- **`distance_km`** is the *verified* distance. It counts no impossible jumps and nothing faster than the mode allows, so a "walk" doesn't earn for a car stretch. Points with accuracy worse than 50 m are dropped, and movements under 10 m are treated as GPS jitter.
+- **`points_awarded`** = verified km × mode rate × confidence × the user's trust multiplier, rounded, then limited by the daily cap.
+  - Mode rates per km: walk 10, bike 6, scooter 4, transit 3, car 0.
+  - **Daily cap: 200 points per Toronto calendar day.** `capped: true` means the cap cut this trip's points.
+- **`confidence`** is between 0 and 1, or `null` for car trips, which aren't checked. It starts at 1, and each check that fails subtracts its penalty and adds a flag:
+
+| Flag | Meaning | Penalty |
+|---|---|---|
+| `speed_too_high` | Average moving speed is too high for the mode (walk 12, bike 30, scooter 28, transit 70 km/h) | 0.5 |
+| `car_like_burst` | Walk, bike or scooter going car-speed for a minute or more (over 20 / 45 / 40 km/h) | 0.6 |
+| `impossible_jump` | The position jumped 500 m or more faster than possible (walk 25, bike 70, scooter 60, transit 130 km/h) | 0.5 |
+| `too_few_points` | Fewer than 5 usable GPS points | 0.5 |
+| `poor_accuracy` | More than half the points dropped, or median accuracy worse than 30 m | 0.2 |
+| `constant_speed` | Suspiciously constant speed: less than 5% variation over 10+ segments | 0.5 |
+| `far_from_last_trip` | Starts more than 2 km from where the previous trip ended, less than 60 min later | 0.2 |
+| `transit_start_not_near_stop` | Transit trip doesn't start within 200 m of a GRT stop | 0.4 |
+| `transit_end_not_near_stop` | Transit trip doesn't end within 200 m of a GRT stop | 0.4 |
+| `stop_check_unavailable` | Stop data wasn't loaded, so the transit check was skipped | 0 (info only) |
+
+**Side effects of finishing:**
+
+| Case | Points | Trust multiplier | Eco score | Streak and club steps |
+|---|---|---|---|---|
+| Confidence ≥ 0.8 and ≥ 0.5 km | Yes | +0.02 (max 1.0) | +1 if ≥ 1 km (max +3 a day, max 100) | Yes |
+| Confidence 0.3 to under 0.8 | Yes | No change | +1 if ≥ 1 km (same limits) | Yes |
+| **Confidence below 0.3** | **0** | **−0.15** (min 0.4) | No change (not a car penalty) | No |
+| **Car trip** | **0** | No change | **−0.5 per km**, rounded, between −1 and −10 per trip | No |
+
+- **Streak:** a day counts with one finished non-car trip with confidence ≥ 0.3 and at least 0.5 verified km, by Toronto date. A trip the day after the last active day adds +1; a later trip restarts the streak at 1. Car trips never break a streak.
+- **Club steps:** walk trips only (confidence ≥ 0.3) add verified km × 1,300 steps to every club the user is in. Club totals reset when a new Toronto week starts (Monday).
+
+### `GET /api/trips?limit=20` — my trips, newest first — **built**
+
+`limit` is between 1 and 100, and defaults to 20.
 
 Response `200`:
 ```json
@@ -145,19 +182,24 @@ Response `200`:
       "started_at": "2026-11-05T13:00:00.000Z",
       "ended_at": "2026-11-05T13:22:00.000Z",
       "distance_km": 1.8,
-      "confidence": 1.0,
-      "points_awarded": 18
+      "confidence": 1,
+      "points_awarded": 18,
+      "flags": []
     }
   ]
 }
 ```
 
-### `GET /api/trips/:id` — one trip with its GPS path — **planned**
+Active trips appear too, with `ended_at`, `distance_km`, `confidence` and `points_awarded` set to `null`.
+
+### `GET /api/trips/:id` — one trip with its GPS path — **built**
 
 Response `200`: the same fields as a list item, plus
 ```json
 { "points": [ { "lat": 43.4655, "lng": -80.5228, "accuracy": 5, "timestamp": "2026-11-05T13:00:00.000Z" } ] }
 ```
+
+The points are every stored point, sorted by time, including ones that scoring dropped. Errors: `404 not_found`.
 
 ---
 
@@ -404,6 +446,7 @@ Response `200`:
 
 ## Not in this draft (yet)
 
+- Abandoned trips: a trip left active (the app was closed mid-trip) stays active until it is finished, and blocks starting a new one (`409 trip_already_active` gives its id). Auto-finishing is not built yet.
 - Endpoints to add, edit or delete saved locations. For now they're returned in `GET /api/me`.
 - Bike routes with a safety rating. The data source is not decided.
 - Place search. The frontend may call Nominatim directly; this is undecided.
