@@ -3,6 +3,10 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { currentUser, type CurrentUserEnv } from './currentUser.js';
 import { openDb } from './db.js';
+import { clubRoutes } from './routes/clubs.js';
+import { locationRoutes } from './routes/locations.js';
+import { meRoutes } from './routes/me.js';
+import { rewardRoutes } from './routes/rewards.js';
 import { ALLOW_BACKDATED, tripRoutes } from './routes/trips.js';
 import { transitRoutes } from './routes/transit.js';
 import { initStaticGtfs } from './transit/staticGtfs.js';
@@ -32,6 +36,10 @@ app.route('/api', transitRoutes);
 const api = new Hono<CurrentUserEnv>();
 api.use('*', currentUser(db));
 api.route('/', tripRoutes(db));
+api.route('/', meRoutes(db));
+api.route('/', rewardRoutes(db));
+api.route('/', clubRoutes(db));
+api.route('/', locationRoutes(db));
 app.route('/api', api);
 
 serve({ fetch: app.fetch, port }, (info) => {

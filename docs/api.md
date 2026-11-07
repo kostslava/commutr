@@ -36,8 +36,8 @@ Errors always use this shape, with a matching HTTP status:
 |---|---|---|
 | 400 | `bad_demo_user` | `X-Demo-User` is not a positive integer *(built)* |
 | 404 | `user_not_found` | `X-Demo-User` names a user that doesn't exist *(built)* |
-| 400 | `validation_error` | Bad request body or params *(built for trips and `bbox`)* |
-| 404 | `not_found` | Trip, reward or club doesn't exist, or isn't yours *(built for trips)* |
+| 400 | `validation_error` | Bad request body or params *(built)* |
+| 404 | `not_found` | Trip, reward, club or location doesn't exist, or isn't yours *(built)* |
 
 Endpoint-specific codes are listed with each endpoint.
 
@@ -127,7 +127,7 @@ Response `200`:
     "flags": []
   },
   "user": { "points": 3227, "eco_score": 99 },
-  "streak": { "current_days": 6, "longest_days": 12, "last_active_date": "2026-11-07" },
+  "streak": { "current_days": 6, "longest_days": 12, "last_active_date": "2026-11-07", "active_today": true },
   "steps_added": 3526
 }
 ```
@@ -205,7 +205,7 @@ The points are every stored point, sorted by time, including ones that scoring d
 
 ## Me (profile, points, eco score)
 
-### `GET /api/me` — **planned**
+### `GET /api/me` — **built**
 
 Response `200`:
 ```json
@@ -215,37 +215,63 @@ Response `200`:
   "email": "alex@demo.commutr.test",
   "points": 3200,
   "eco_score": 98,
-  "streak": { "current_days": 5, "longest_days": 12, "last_active_date": "2026-11-05" },
+  "trust_multiplier": 1,
+  "points_today": 40,
+  "daily_cap": 200,
+  "streak": { "current_days": 5, "longest_days": 12, "last_active_date": "2026-11-06", "active_today": false },
+  "clubs": [
+    {
+      "id": 1,
+      "name": "UW Walkers",
+      "my_steps_this_week": 42300,
+      "steps_this_week": 92350,
+      "weekly_goal_steps": 150000,
+      "progress": 0.616,
+      "goal_reached": false
+    }
+  ],
   "saved_locations": [
-    { "id": 1, "label": "Home", "lat": 43.4762, "lng": -80.5371 },
-    { "id": 2, "label": "Campus", "lat": 43.4723, "lng": -80.5449 }
+    { "id": 1, "kind": "home", "label": "Home", "lat": 43.4762, "lng": -80.5371 },
+    { "id": 2, "kind": "favourite", "label": "Campus", "lat": 43.4723, "lng": -80.5449 }
   ]
 }
 ```
 
-- `eco_score` runs from 0 to 100.
-- The trust multiplier is internal and is not exposed.
-- A streak day is one finished non-car trip with confidence of at least 0.3 and at least 0.5 km, by Toronto local date.
+| Field | Notes |
+|---|---|
+| `eco_score` | 0–100. Car trips lower it; green trips of 1 km or more raise it by 1 (at most +3 a day). See Trips. |
+| `trust_multiplier` | 0.4–1.0. It multiplies trip points. It drops after a trip with confidence below 0.3, and recovers slowly with clean trips. |
+| `points_today`, `daily_cap` | Trip points earned today (Toronto time) and the daily cap, for example "40 / 200 today" |
+| `streak.current_days` | **Shows 0 if the last active day was before yesterday** (Toronto time); the streak is broken. `longest_days` is always kept. |
+| `streak.active_today` | `true` if today already counts toward the streak |
+| `clubs` | The clubs I'm in. `my_steps_this_week` is my share; `steps_this_week` is the club's total. Both follow the weekly reset. |
+| `saved_locations` | The home comes first, then favourites. Same as `GET /api/locations`. |
+
+A streak day is one finished non-car trip with confidence of at least 0.3 and at least 0.5 verified km, counted by Toronto date.
 
 ---
 
 ## Rewards
 
-A reward is **locked** when the user's eco score is below `min_eco_score`, even if they have enough points. It is **affordable** when `points >= points_cost`. A reward can only be redeemed when it is unlocked and affordable.
+A reward is **locked** when the user's eco score is below `min_eco_score`, **even if they have enough points**. It is **affordable** when `points >= points_cost`. Each reward can be redeemed **once per day** (Toronto time) per user. All merchants and rewards are demo data, and redemption codes are demo codes.
 
-### `GET /api/rewards` — **planned**
+### `GET /api/rewards` — **built**
 
 Response `200`:
 ```json
 {
   "rewards": [
     {
-      "id": 2,
-      "title": "$10 Maple Loop Coffee card",
-      "points_cost": 1000,
-      "min_eco_score": 85,
-      "locked": false,
+      "id": 3,
+      "title": "$25 Maple Loop Coffee card",
+      "points_cost": 2500,
+      "min_eco_score": 95,
+      "locked": true,
       "affordable": true,
+      "lock_reason": "eco_score_too_low",
+      "points_needed": 0,
+      "eco_needed": 13,
+      "redeemed_today": false,
       "merchant": {
         "id": 1,
         "name": "Maple Loop Coffee",
@@ -259,11 +285,20 @@ Response `200`:
 }
 ```
 
-Gift card merchants have `address`, `lat` and `lng` set to `null`. All merchants are demo data.
+| Field | Notes |
+|---|---|
+| `lock_reason` | `"eco_score_too_low"` when locked by eco score. `"not_enough_points"` when unlocked but not affordable. Otherwise `null`. Eco takes priority when both apply. |
+| `points_needed` | How many more points are needed. 0 if affordable. |
+| `eco_needed` | How much more eco score is needed. 0 if unlocked. |
+| `redeemed_today` | Already redeemed today, so a redeem now would return `409 already_redeemed_today` |
 
-### `POST /api/rewards/:id/redeem` — **planned**
+Gift card merchants have `address`, `lat` and `lng` set to `null`. Rewards are sorted by merchant, then cost.
+
+### `POST /api/rewards/:id/redeem` — **built**
 
 Request: an empty body `{}`.
+
+The checks, the point deduction and the new redemption all happen in one transaction, so points can't be spent twice.
 
 Response `201`:
 ```json
@@ -271,30 +306,55 @@ Response `201`:
   "redemption": {
     "id": 3,
     "reward_id": 2,
+    "title": "$10 Maple Loop Coffee card",
+    "merchant_name": "Maple Loop Coffee",
     "points_spent": 1000,
-    "code": "DEMO-7F3K",
+    "code": "CMTR-7F3K-Q2PX",
     "redeemed_at": "2026-11-07T15:00:00.000Z"
   },
   "user": { "points": 2200 }
 }
 ```
 
-Errors: `403 eco_score_too_low` · `409 not_enough_points`.
+Codes look like `CMTR-XXXX-XXXX`. They use letters and digits but never 0, O, 1 or I, so they're easy to read out.
 
-### `GET /api/redemptions` — my redeemed rewards — **planned**
+Errors (checked in this order):
+
+| Status | `code` | Extra fields |
+|---|---|---|
+| 404 | `not_found` | Unknown reward |
+| 403 | `eco_score_too_low` | `min_eco_score`, `eco_score` |
+| 409 | `already_redeemed_today` | (none) |
+| 409 | `not_enough_points` | `points_cost`, `points` |
+
+```json
+{ "error": { "code": "eco_score_too_low", "message": "This reward needs an eco score of 95; yours is 82" }, "min_eco_score": 95, "eco_score": 82 }
+```
+
+### `GET /api/redemptions` — my redeemed rewards — **built**
+
+Newest first, at most 100.
 
 Response `200`:
 ```json
-{ "redemptions": [ { "id": 1, "reward_id": 6, "title": "Free coffee and pastry", "points_spent": 300, "code": "DEMO-0001", "redeemed_at": "2026-11-04T17:20:00.000Z" } ] }
+{
+  "redemptions": [
+    { "id": 1, "reward_id": 6, "title": "Free coffee and pastry", "merchant_name": "Belmont Bakehouse", "points_spent": 300, "code": "DEMO-0001", "redeemed_at": "2026-11-04T17:20:00.000Z" }
+  ]
+}
 ```
 
 ---
 
 ## Clubs
 
-Each club has a weekly shared step goal and a group reward. **Progress counts walking km only, at 1,300 steps per km.** Until trips are scored, the steps come from fake totals in the seed.
+Each club has a weekly shared step goal and a group reward.
+- **Progress counts walking only:** verified walk km × 1,300 steps, from trips with confidence of at least 0.3.
+- **Weekly reset:** weeks start on Monday, Toronto time. Steps from an earlier week count as 0.
+- **New members start at 0 steps.** Walks from earlier in the week don't count.
+- **Leaving removes your steps** from the club total.
 
-### `GET /api/clubs` — **planned**
+### `GET /api/clubs` — **built**
 
 Response `200`:
 ```json
@@ -306,6 +366,9 @@ Response `200`:
       "description": "Students walking to campus instead of driving.",
       "weekly_goal_steps": 150000,
       "steps_this_week": 92350,
+      "progress": 0.616,
+      "goal_reached": false,
+      "week_start": "2026-11-02",
       "member_count": 3,
       "is_member": true,
       "group_reward": "Free medium coffee for every member at Maple Loop Coffee (demo)"
@@ -314,28 +377,79 @@ Response `200`:
 }
 ```
 
-### `GET /api/clubs/:id` — **planned**
+- `progress` runs from 0 to 1 and is capped at 1.
+- `goal_reached` is `true` once `steps_this_week >= weekly_goal_steps`.
+- `week_start` is the Monday of the current week. The group reward is shown as text only; claiming it isn't built yet.
 
-Response `200`: the same fields as a list item, plus
+### `GET /api/clubs/:id` — **built**
+
+Response `200`: the same fields as a list item, plus the members, sorted by steps:
 ```json
 {
   "members": [
-    { "user_id": 1, "name": "Alex Demo", "steps_this_week": 42300 },
-    { "user_id": 2, "name": "Sam Rivera", "steps_this_week": 31850 }
+    { "user_id": 1, "name": "Alex Demo", "steps_this_week": 42300, "joined_at": "2026-10-16T14:00:00.000Z" },
+    { "user_id": 2, "name": "Sam Rivera", "steps_this_week": 31850, "joined_at": "2026-10-17T15:30:00.000Z" }
   ]
 }
 ```
 
-### `POST /api/clubs/:id/join` — **planned**
+Errors: `404 not_found`.
+
+### `POST /api/clubs/:id/join` — **built**
+### `POST /api/clubs/:id/leave` — **built**
 
 Request: an empty body `{}`.
 
+Both can safely be repeated. Joining a club you're already in, or leaving one you're not in, still returns `200`.
+
 Response `200`:
 ```json
-{ "club_id": 1, "joined": true }
+{ "club_id": 1, "joined": true, "club": { "id": 1, "member_count": 4, "is_member": true, "steps_this_week": 92350, "…": "same fields as GET /api/clubs" } }
 ```
 
-Joining a club you're already in is not an error; it also returns `joined: true`.
+`leave` returns `"left": true` instead of `"joined": true`. Errors: `404 not_found` for an unknown club.
+
+---
+
+## Saved locations
+
+Each user has **at most one home**, and adding a new home replaces the old one. Users can have up to **20 favourites**.
+
+### `GET /api/locations` — **built**
+
+Response `200`:
+```json
+{
+  "locations": [
+    { "id": 1, "kind": "home", "label": "Home", "lat": 43.4762, "lng": -80.5371 },
+    { "id": 2, "kind": "favourite", "label": "Campus", "lat": 43.4723, "lng": -80.5449 }
+  ]
+}
+```
+
+The home comes first, then favourites in the order they were added.
+
+### `POST /api/locations` — **built**
+
+Request:
+```json
+{ "kind": "favourite", "label": "Gym", "lat": 43.46, "lng": -80.52 }
+```
+
+`kind` is `"home"` or `"favourite"`. `label` is 1–50 characters.
+
+Response `201`:
+```json
+{ "location": { "id": 7, "kind": "favourite", "label": "Gym", "lat": 43.46, "lng": -80.52 }, "replaced_id": null }
+```
+
+When a new home replaces the old one, `replaced_id` is the old home's id.
+
+Errors: `400 validation_error` · `409 too_many_favourites`.
+
+### `DELETE /api/locations/:id` — **built**
+
+Response `204` with no body. Errors: `404 not_found` if the location doesn't exist or isn't yours.
 
 ---
 
@@ -447,7 +561,7 @@ Response `200`:
 ## Not in this draft (yet)
 
 - Abandoned trips: a trip left active (the app was closed mid-trip) stays active until it is finished, and blocks starting a new one (`409 trip_already_active` gives its id). Auto-finishing is not built yet.
-- Endpoints to add, edit or delete saved locations. For now they're returned in `GET /api/me`.
+- Editing a saved location (`PATCH`). For now, delete it and add it again.
+- Claiming or issuing a club's group reward when the weekly goal is reached. `goal_reached` is shown, but nothing is issued.
 - Bike routes with a safety rating. The data source is not decided.
 - Place search. The frontend may call Nominatim directly; this is undecided.
-- The full list of confidence flag codes, to be defined with the scoring logic.

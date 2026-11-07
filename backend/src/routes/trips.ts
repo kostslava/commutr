@@ -1,9 +1,10 @@
-import { Hono, type Context } from 'hono';
+import { Hono } from 'hono';
 import type { CurrentUserEnv } from '../currentUser.js';
 import type { DB } from '../db.js';
 import { finishTrip } from '../scoring/apply.js';
 import * as C from '../scoring/config.js';
 import type { Mode } from '../scoring/config.js';
+import { bad, idParam, isObj, jsonBody, notFound as notFoundOf } from './http.js';
 
 // Test-only: lets POST /api/trips take a past `started_at`, so scripts can replay
 // realistic trips through the real endpoints. Refused in production (see index.ts).
@@ -24,22 +25,7 @@ type TripRow = {
 const TRIP_COLUMNS = 'id, mode, status, started_at, ended_at, distance_km, confidence, points_awarded, flags';
 const tripJson = (t: TripRow) => ({ ...t, flags: JSON.parse(t.flags) as string[] });
 
-const bad = (c: Context, message: string) => c.json({ error: { code: 'validation_error', message } }, 400);
-const notFound = (c: Context, id: unknown) => c.json({ error: { code: 'not_found', message: `No trip ${id}` } }, 404);
-
-async function jsonBody(c: Context): Promise<unknown> {
-  try {
-    return await c.req.json();
-  } catch {
-    return undefined;
-  }
-}
-
-const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const tripIdParam = (c: Context) => {
-  const id = Number(c.req.param('id'));
-  return Number.isInteger(id) && id > 0 ? id : null;
-};
+const notFound = (c: Parameters<typeof notFoundOf>[0], id: unknown) => notFoundOf(c, 'trip', id);
 
 export function tripRoutes(db: DB) {
   const r = new Hono<CurrentUserEnv>();
@@ -72,7 +58,7 @@ export function tripRoutes(db: DB) {
   // Add a batch of GPS points. Malformed points fail the request (400); points
   // outside the trip's time window are skipped and counted as `rejected`.
   r.post('/trips/:id/points', async (c) => {
-    const tripId = tripIdParam(c);
+    const tripId = idParam(c);
     if (tripId === null) return notFound(c, c.req.param('id'));
     const trip = db.prepare('SELECT status, started_at FROM trips WHERE id = ? AND user_id = ?').get(tripId, c.get('userId')) as
       | { status: string; started_at: string }
@@ -116,7 +102,7 @@ export function tripRoutes(db: DB) {
 
   // Finish and score.
   r.post('/trips/:id/finish', (c) => {
-    const tripId = tripIdParam(c);
+    const tripId = idParam(c);
     if (tripId === null) return notFound(c, c.req.param('id'));
     // Normally the trip ends now. In test mode (backdated trips) it ends at its last point.
     const endedAt = (points: { timestamp: string }[]) =>
@@ -138,7 +124,7 @@ export function tripRoutes(db: DB) {
 
   // One trip with its GPS path.
   r.get('/trips/:id', (c) => {
-    const tripId = tripIdParam(c);
+    const tripId = idParam(c);
     if (tripId === null) return notFound(c, c.req.param('id'));
     const trip = db.prepare(`SELECT ${TRIP_COLUMNS} FROM trips WHERE id = ? AND user_id = ?`).get(tripId, c.get('userId')) as TripRow | undefined;
     if (!trip) return notFound(c, tripId);

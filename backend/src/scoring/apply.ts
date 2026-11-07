@@ -3,6 +3,7 @@
 // streak and club steps. Numbers come from ./config.ts.
 
 import type { DB } from '../db.js';
+import { displayStreak, type DisplayStreak } from '../streak.js';
 import { addDays, torontoDate, torontoDayRangeUtc, torontoWeekStart } from '../time.js';
 import { nearestStopMeters } from '../transit/staticGtfs.js';
 import * as C from './config.js';
@@ -23,7 +24,7 @@ export type FinishResult = {
     flags: Flag[];
   };
   user: { points: number; eco_score: number };
-  streak: { current_days: number; longest_days: number; last_active_date: string | null };
+  streak: DisplayStreak;
   steps_added: number;
 };
 
@@ -144,7 +145,7 @@ export function finishTrip(db: DB, userId: number, tripId: number, endedAt: (poi
         flags: score.flags,
       },
       user: { points: user.points + pointsAwarded, eco_score: ecoScore },
-      streak,
+      streak: displayStreak(streak, ended_at),
       steps_added: stepsAdded,
     };
   })();
