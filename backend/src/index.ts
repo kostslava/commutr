@@ -1,8 +1,10 @@
+import './env.js'; // must be first: loads backend/.env before other modules read process.env
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { currentUser, type CurrentUserEnv } from './currentUser.js';
 import { openDb } from './db.js';
+import { chatAudioRoutes, chatRoutes } from './routes/chat.js';
 import { clubRoutes } from './routes/clubs.js';
 import { locationRoutes } from './routes/locations.js';
 import { meRoutes } from './routes/me.js';
@@ -31,6 +33,8 @@ app.get('/health', (c) => c.json({ ok: true }));
 // Public transit endpoints. Mounted BEFORE the current-user middleware below so
 // they answer without it (they don't depend on the user or the database).
 app.route('/api', transitRoutes);
+// Chat audio is public too: <audio src> can't send X-Demo-User (file names are unguessable hashes).
+app.route('/api', chatAudioRoutes);
 
 // All other app endpoints live under /api and see a (fake) current user. See docs/api.md.
 const api = new Hono<CurrentUserEnv>();
@@ -40,6 +44,7 @@ api.route('/', meRoutes(db));
 api.route('/', rewardRoutes(db));
 api.route('/', clubRoutes(db));
 api.route('/', locationRoutes(db));
+api.route('/', chatRoutes(db));
 app.route('/api', api);
 
 serve({ fetch: app.fetch, port }, (info) => {

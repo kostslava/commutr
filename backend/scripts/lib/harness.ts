@@ -22,7 +22,7 @@ export type Harness = {
 };
 
 /** Fresh DB `backend/data/<dbName>`, seeded, and a server on `port`. */
-export async function startHarness(opts: { dbName: string; port: number }): Promise<Harness> {
+export async function startHarness(opts: { dbName: string; port: number; env?: Record<string, string> }): Promise<Harness> {
   const dbPath = fileURLToPath(new URL(`../../data/${opts.dbName}`, import.meta.url));
   const base = `http://localhost:${opts.port}`;
 
@@ -33,7 +33,8 @@ export async function startHarness(opts: { dbName: string; port: number }): Prom
 
   const server = spawn('npx', ['tsx', 'src/index.ts'], {
     cwd: BACKEND,
-    env: { ...process.env, DB_PATH: dbPath, PORT: String(opts.port), SCORING_ALLOW_BACKDATED: '1' },
+    // COMMUTR_ENV_FILE=none: test servers never load the real backend/.env unless a test asks for it.
+    env: { ...process.env, COMMUTR_ENV_FILE: 'none', DB_PATH: dbPath, PORT: String(opts.port), SCORING_ALLOW_BACKDATED: '1', ...opts.env },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true, // own process group, so npx -> tsx -> node can all be stopped together
   });

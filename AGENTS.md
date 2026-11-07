@@ -20,6 +20,7 @@ Two humans, two AI agents (Claude Code and Codex). Each agent works only in its 
 - Map: MapLibre GL JS + OpenFreeMap tiles
 - Place search: Nominatim (OSM). Set a User-Agent, max 1 request per second.
 - Street view: Mapillary (MapillaryJS, free token, must show Mapillary attribution). Crowdsourced, coverage in KW untested.
+- Chatbot: Gemini API (gemini-3.5-flash-lite) for chat with function calling and for voice transcription. Speech: ElevenLabs (eleven_flash_v2_5) first, Gemini TTS as the fallback. Keys in backend/.env (see backend/.env.example), never committed or logged.
 - Everything must be free or open source.
 
 ## Live transit (real data, GRT)
@@ -64,7 +65,6 @@ points = verified_km x mode_rate x confidence, with a daily cap.
 
 ## Not decided yet
 - Bike safety rating data source
-- Chatbot provider
 - Deployment (local first, Cloudflare optional)
 
 ## Demo data
