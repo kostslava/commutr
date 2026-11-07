@@ -640,10 +640,147 @@ Serves the spoken reply: `audio/mpeg` for ElevenLabs, `audio/wav` for the Gemini
 
 ---
 
+## Trip planner
+
+Plans a green trip to a destination: walk, bike and direct GRT transit options, a recommendation, and a short summary the app can show or read aloud.
+
+**How it works:**
+- **The server computes every number:** minutes, km, points estimates and the next bus. Gemini (function calling, then a structured-output answer) only **chooses, orders and explains** the options. The server checks Gemini's answer. A summary that contains a number not in the computed data is replaced by a computed summary.
+- **Distances** are the straight line times a detour factor (walk ×1.3 at 5 km/h, bike ×1.25 at 15 km/h). There's no street routing, so the `steps` are general directions.
+- **Transit** covers direct routes only (no transfers): a stop within 800 m of each end, on the same route, in the right direction.
+  - The ride length is measured along the route, at about 20 km/h.
+  - `next_bus` is a live GRT prediction (`source: "live"`), else an estimate from live bus positions (`"estimate"`), else `null` (then a 10-minute wait is assumed).
+  - When live predictions work, routes with no bus in the next hour are left out.
+- **Points estimates** use the real scoring formula: `points_km × mode rate × 1.0 confidence × your trust`, rounded, then limited by what's left of today's 200 cap (`points_capped: true`).
+  - For transit, `points_km` is the ride only, because a transit trip must start and end near a stop. **Tell the user to start the transit trip at the stop.**
+- **If Gemini fails, is slow or is over its limits,** the answer is computed entirely on the server (`source: "computed"`). It has the same options, a rule-based recommendation and a template summary. The whole request takes at most about 8 s.
+- **Privacy:** the origin stays on the server. Gemini sees only place ids, public place names, GRT stop names and the computed numbers. A saved location is described as "your home" or "your saved place", never by its label. Only the destination text is sent to Nominatim (the OpenStreetMap search).
+
+- **Destination choice:** place-search results are ranked by how many of the requested words their name contains, ties broken by distance. So "Waterloo Public Library" picks Waterloo's library even when the search lists Kitchener's first. The computed answer uses the top result; Gemini sees them in that order.
+- **Cache:** for 5 minutes, the same user asking for the same destination from about the same place (within about 100 m) reuses Gemini's earlier choice and summary, with no Gemini call (`cached: true`). **The numbers are always recomputed** (next bus, minutes, points). A summary whose numbers no longer match is replaced by the computed one. Computed answers aren't cached. The cache is in memory only.
+
+**Limit per user:** 3 plans a minute and 30 a day, shared with `POST /api/agent/plan`. Cache hits count too. Over the limit returns `429 rate_limited` with `retry_after_sec`.
+
+### `POST /api/plan` — **built**
+
+Request:
+```json
+{ "destination": "Waterloo Public Library", "origin_lat": 43.4723, "origin_lng": -80.5449 }
+```
+
+- `destination`, required, is one of:
+  - **a string** (max 200 characters). It's matched first against your saved locations (`"home"`, or a label like `"campus"`), then the demo merchants, then a place search limited to Kitchener-Waterloo-Cambridge;
+  - **or a place** `{ "name": "...", "lat": 43.46, "lng": -80.52 }`, for example from a map tap.
+- `origin_lat` and `origin_lng` are optional, and must be sent together. Without them, the origin is your saved home.
+
+Response `200`:
+```json
+{
+  "source": "gemini",
+  "cached": false,
+  "destination": { "name": "Waterloo Public Library, Albert Street, Waterloo", "kind": "search" },
+  "origin": "home",
+  "options": [
+    {
+      "mode": "bike",
+      "minutes": 11,
+      "km": 2.8,
+      "points_km": 2.8,
+      "points_estimate": 17,
+      "points_capped": false,
+      "eco_note": "Saves about 0.5 kg of CO2 compared with driving. No emissions at all on a bike.",
+      "steps": ["Ride south-east about 2.8 km to Waterloo Public Library, Albert Street, Waterloo."],
+      "next_bus": null
+    },
+    {
+      "mode": "transit",
+      "minutes": 18,
+      "km": 3.1,
+      "points_km": 2.2,
+      "points_estimate": 7,
+      "points_capped": false,
+      "eco_note": "Saves about 0.4 kg of CO2 compared with driving. A shared bus ride is far greener than driving alone.",
+      "steps": [
+        "Walk about 600 m to University Of Waterloo Station - Southbound.",
+        "Take route 301 toward Fairway (next one in about 8 min). Start your transit trip in the app once you are at the stop.",
+        "Ride about 2.2 km and get off at Willis Way Station - Southbound.",
+        "Walk about 300 m to Waterloo Public Library, Albert Street, Waterloo."
+      ],
+      "next_bus": {
+        "route": "301",
+        "headsign": "Fairway",
+        "stop_name": "University Of Waterloo Station - Southbound",
+        "stop_code": null,
+        "minutes": 8,
+        "arrives_at": "2026-11-07T22:31:00.000Z",
+        "source": "live"
+      }
+    },
+    { "mode": "walk", "minutes": 34, "km": 2.9, "points_km": 2.9, "points_estimate": 29, "points_capped": false, "eco_note": "…", "steps": ["…"], "next_bus": null }
+  ],
+  "recommendation": "bike",
+  "summary": "Biking gets you there in about 11 minutes and earns about 17 points.",
+  "attribution": ["Transit data: Grand River Transit, Region of Waterloo Open Data", "Search: © OpenStreetMap contributors (Nominatim)"]
+}
+```
+
+- `options` come **recommended first**, then in the order Gemini chose (or fastest first, when computed). The response leaves out an option that doesn't apply:
+  - walking over 6 km;
+  - biking over 25 km;
+  - transit with no direct route;
+  - only walking under 0.4 km.
+- `cached`: `true` when Gemini's decision came from the 5-minute cache.
+- `destination.kind`: `saved` | `merchant` | `search` | `given`.
+- `origin`: `home` | `given`.
+- `recommendation` is `null` only if `options` is empty.
+- **Show `attribution`.** The OpenStreetMap line is there when the place search was used.
+
+Errors:
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `validation_error` | Bad `destination`, or only one of `origin_lat` and `origin_lng` |
+| 400 | `no_origin` | No origin given and no saved home |
+| 400 | `too_far` | Destination more than 40 km away |
+| 404 | `destination_not_found` | Nothing in Kitchener-Waterloo matches |
+| 503 | `search_unavailable` | The place search is down or too slow (saved places and merchants still work) |
+| 429 | `rate_limited` | Over the per-user plan limit |
+
+---
+
+## Live voice agent tools
+
+The mascot's live voice agent runs on ElevenLabs. ElevenLabs' servers call `/api/agent/*` over HTTPS as tools. **These endpoints aren't for the frontend.** The exact tool definitions to paste into the ElevenLabs dashboard, and the tunnel setup, are in [`docs/agent-tools.md`](agent-tools.md).
+
+- **Auth:** the header `X-Agent-Secret` must match `AGENT_TOOL_SECRET` in `backend/.env`:
+  - missing or wrong → `401 bad_agent_secret`;
+  - not set on the server → `503 agent_not_configured`.
+- **User:** the agent acts as user 1, or as `X-Demo-User` (the same rule as the app).
+- **Every response has `ok` and a short spoken `summary`.** Expected refusals are `200` with `ok: false` and a `code`; malformed input is `400`. Expected refusals:
+  - redeeming without `confirm: true`;
+  - can't afford;
+  - a trip is already running;
+  - place not found.
+
+| Method | Path | What |
+|---|---|---|
+| GET | `/api/agent/status` | Points, eco score, streak, points today *(built)* |
+| GET | `/api/agent/rewards` | Affordable and locked rewards, with what's missing *(built)* |
+| POST | `/api/agent/redeem` | `{ reward_id, confirm: true }`. Without `confirm: true` it only asks *(built)* |
+| POST | `/api/agent/plan` | Same body and answer as `POST /api/plan`, plus `ok` *(built)* |
+| POST | `/api/agent/trips/start` | `{ mode }`. The app then records GPS for this trip *(built)* |
+| POST | `/api/agent/trips/finish` | `{ confirm? }`. Finishes the active trip. With fewer than 5 GPS points it warns first *(built)* |
+| POST | `/api/agent/route-safety` | `{ destination }`. **Stub** for now: `available: false` *(built)* |
+
+**For the frontend:** when the agent starts a trip, the app should find it with `GET /api/trips?limit=1` (`status: "active"`) and send GPS points to it as usual.
+
+---
+
 ## Not in this draft (yet)
 
 - Abandoned trips: a trip left active (the app was closed mid-trip) stays active until it is finished, and blocks starting a new one (`409 trip_already_active` gives its id). Auto-finishing is not built yet.
 - Editing a saved location (`PATCH`). For now, delete it and add it again.
 - Claiming or issuing a club's group reward when the weekly goal is reached. `goal_reached` is shown, but nothing is issued.
-- Bike routes with a safety rating. The data source is not decided.
-- Place search. The frontend may call Nominatim directly; this is undecided.
+- Route safety ratings (Gemini rating routes from Mapillary photos). Coming in a later task; `POST /api/agent/route-safety` is a stub until then.
+- Street-by-street routing. The planner uses straight-line distances with a detour factor, and direct transit routes only.
+- A place-search endpoint for the frontend. The planner searches on the server; the frontend may still call Nominatim directly for a map search box.

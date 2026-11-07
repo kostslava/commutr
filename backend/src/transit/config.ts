@@ -15,14 +15,18 @@ export const transitConfig = {
   // against static feed N for route names and headsigns.
   vehicleUrls: urlList(process.env.GRT_VEHICLES_URLS, [`${BASE}/vehiclepositions/1`, `${BASE}/vehiclepositions/2`]),
   staticUrls: urlList(process.env.GRT_STATIC_URLS, [`${BASE}/staticfeeds/1`, `${BASE}/staticfeeds/2`]),
+  // Predicted arrivals per stop (used by the trip planner for the next bus).
+  tripUpdatesUrls: urlList(process.env.GRT_TRIPUPDATES_URLS, [`${BASE}/tripupdates/1`, `${BASE}/tripupdates/2`]),
 
   feedTimeoutMs: Number(process.env.GRT_FEED_TIMEOUT_MS ?? 5_000),
   liveCacheMs: 10_000,
+  tripUpdatesCacheMs: 30_000,
   // A feed whose header timestamp is older than this counts as failed.
   staleAfterMs: 5 * 60_000,
 
   staticTimeoutMs: 30_000,
   staticMaxAgeMs: 24 * 60 * 60_000,
   staticCheckIntervalMs: 60 * 60_000,
-  cacheDir: fileURLToPath(new URL('../../data/gtfs/', import.meta.url)),
+  // Overridable so the test scripts never touch the real cache.
+  cacheDir: process.env.GRT_CACHE_DIR || fileURLToPath(new URL('../../data/gtfs/', import.meta.url)),
 };

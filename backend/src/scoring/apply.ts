@@ -35,6 +35,11 @@ type UserRow = { points: number; eco_score: number; trust_multiplier: number };
 type StreakRow = { current_days: number; longest_days: number; last_active_date: string | null };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** The points formula: verified km x mode rate x confidence x trust, rounded. (The trip planner's estimates use it too.) */
+export const tripPoints = (km: number, mode: Mode, confidence: number, trust: number) => Math.round(km * C.MODE_RATES[mode] * confidence * trust);
+/** Points actually awarded after the daily cap, given what was already earned today. */
+export const capToDaily = (points: number, earnedToday: number) => Math.min(points, Math.max(0, C.DAILY_POINTS_CAP - earnedToday));
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 /**
@@ -70,11 +75,11 @@ export function finishTrip(db: DB, userId: number, tripId: number, endedAt: (poi
     const [dayStart, dayEnd] = torontoDayRangeUtc(today);
 
     // --- Points with the daily cap ---------------------------------------------
-    const rawPoints = isCar || lowConfidence || confidence === null ? 0 : Math.round(km * C.MODE_RATES[trip.mode] * confidence * user.trust_multiplier);
+    const rawPoints = isCar || lowConfidence || confidence === null ? 0 : tripPoints(km, trip.mode, confidence, user.trust_multiplier);
     const { used } = db
       .prepare(`SELECT COALESCE(SUM(points_awarded), 0) AS used FROM trips WHERE user_id = ? AND status = 'finished' AND ended_at >= ? AND ended_at < ?`)
       .get(userId, dayStart, dayEnd) as { used: number };
-    const pointsAwarded = Math.min(rawPoints, Math.max(0, C.DAILY_POINTS_CAP - used));
+    const pointsAwarded = capToDaily(rawPoints, used);
 
     // --- Trust multiplier -------------------------------------------------------
     let trust = user.trust_multiplier;

@@ -2,12 +2,15 @@ import './env.js'; // must be first: loads backend/.env before other modules rea
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { agentAuth } from './agent/auth.js';
 import { currentUser, type CurrentUserEnv } from './currentUser.js';
 import { openDb } from './db.js';
+import { agentRoutes } from './routes/agent.js';
 import { chatAudioRoutes, chatRoutes } from './routes/chat.js';
 import { clubRoutes } from './routes/clubs.js';
 import { locationRoutes } from './routes/locations.js';
 import { meRoutes } from './routes/me.js';
+import { planRoutes } from './routes/plan.js';
 import { rewardRoutes } from './routes/rewards.js';
 import { ALLOW_BACKDATED, tripRoutes } from './routes/trips.js';
 import { transitRoutes } from './routes/transit.js';
@@ -36,6 +39,15 @@ app.route('/api', transitRoutes);
 // Chat audio is public too: <audio src> can't send X-Demo-User (file names are unguessable hashes).
 app.route('/api', chatAudioRoutes);
 
+// Tool endpoints for the ElevenLabs live voice agent. The X-Agent-Secret check runs
+// first, then the same (fake) current user as the app. Mounted before the /api group
+// below so the secret is checked before anything else.
+const agent = new Hono<CurrentUserEnv>();
+agent.use('*', agentAuth());
+agent.use('*', currentUser(db));
+agent.route('/', agentRoutes(db));
+app.route('/api/agent', agent);
+
 // All other app endpoints live under /api and see a (fake) current user. See docs/api.md.
 const api = new Hono<CurrentUserEnv>();
 api.use('*', currentUser(db));
@@ -45,6 +57,7 @@ api.route('/', rewardRoutes(db));
 api.route('/', clubRoutes(db));
 api.route('/', locationRoutes(db));
 api.route('/', chatRoutes(db));
+api.route('/', planRoutes(db));
 app.route('/api', api);
 
 serve({ fetch: app.fetch, port }, (info) => {

@@ -1,6 +1,7 @@
 // Every chat number and model name lives here. Keys come from backend/.env
 // (see backend/.env.example) and are never logged.
 
+import { ThinkingLevel } from '@google/genai';
 import { fileURLToPath } from 'node:url';
 
 const env = process.env;
@@ -35,7 +36,8 @@ export const GEMINI_BASE_URL = env.GEMINI_BASE_URL || undefined;
 export const CHAT_TURN_TIMEOUT_MS = 5_000;
 export const TRANSCRIBE_TIMEOUT_MS = 10_000;
 /** Generating fallback speech on the first GET of an audio URL. */
-export const GEMINI_TTS_TIMEOUT_MS = 20_000;
+/** Overridable for npm run test:real, which allows 60 s; the app keeps 20 s. */
+export const GEMINI_TTS_TIMEOUT_MS = Number(env.GEMINI_TTS_TIMEOUT_MS || 20_000);
 
 /** Max function-calling rounds per turn (each round is one more Gemini call). */
 export const MAX_TOOL_ROUNDS = 3;
@@ -81,7 +83,28 @@ if (ceilingMultiplier !== 1) for (const c of Object.values(CEILINGS)) Object.ass
 export const USER_LIMITS = {
   text: { perMinute: 10, perDay: 100 },
   voice: { perMinute: 4, perDay: 30 },
+  /** Trip plans (POST /api/plan and /api/agent/plan share this). Each plan makes several Gemini calls. */
+  plan: { perMinute: 3, perDay: 30 },
 };
+
+// --- Trip planner's share of the Gemini ceilings ----------------------------------
+
+/**
+ * Max Gemini calls in one plan (tool rounds + the final structured answer). They all
+ * count against the chat model's ceiling above. A plan only starts with Gemini when
+ * the ceiling has room for all of them; otherwise it answers with the computed plan.
+ */
+export const PLANNER_MAX_GEMINI_CALLS = 4;
+/** Tool rounds before the final structured-output call. */
+export const PLANNER_MAX_TOOL_ROUNDS = PLANNER_MAX_GEMINI_CALLS - 1;
+export const PLANNER_MAX_OUTPUT_TOKENS = 400;
+export const PLANNER_TEMPERATURE = 0.4;
+/**
+ * Thinking for the planner's calls only (tool rounds and the final answer). MINIMAL is
+ * the lowest level gemini-3.5-flash-lite supports (thinking can't be switched off on
+ * 3.x models) and is also its documented default; set explicitly so it stays lowest.
+ */
+export const PLANNER_THINKING_LEVEL = ThinkingLevel.MINIMAL;
 
 // --- Messages and uploads -------------------------------------------------------
 

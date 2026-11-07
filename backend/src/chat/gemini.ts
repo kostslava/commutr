@@ -19,14 +19,15 @@ export class GeminiUnavailable extends Error {
 }
 
 let client: GoogleGenAI | null = null;
-function ai(): GoogleGenAI {
+/** The shared SDK client (the trip planner uses it too). */
+export function ai(): GoogleGenAI {
   const apiKey = C.geminiApiKey();
   if (!apiKey) throw new GeminiUnavailable('no_key');
   client ??= new GoogleGenAI({ apiKey, apiVersion: C.GEMINI_API_VERSION, ...(C.GEMINI_BASE_URL ? { httpOptions: { baseUrl: C.GEMINI_BASE_URL } } : {}) });
   return client;
 }
 
-function take(model: string) {
+export function take(model: string) {
   if (!takeProviderCall(model)) throw new GeminiUnavailable('ceiling');
 }
 
@@ -36,7 +37,7 @@ export type QuotaInfo = { model: string; status: number; quotaMetric?: string; q
 const quotaSeen: QuotaInfo[] = [];
 export const quotaInfoSeen = () => [...quotaSeen];
 
-function noteError(model: string, err: unknown) {
+export function noteError(model: string, err: unknown) {
   const status = (err as { status?: number }).status;
   if (status === 429) {
     const msg = String((err as Error).message ?? '');
@@ -48,7 +49,7 @@ function noteError(model: string, err: unknown) {
 }
 
 /** Run `fn` with an abort signal that fires after `ms`; rejects at `ms` even if the SDK ignores the signal. */
-async function withTimeout<T>(ms: number, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+export async function withTimeout<T>(ms: number, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const ctl = new AbortController();
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
