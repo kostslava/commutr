@@ -307,6 +307,45 @@ async function mocked() {
     const saved = JSON.parse(readFileSync(mainEnv.GEOCODE_CACHE_FILE!, 'utf8'));
     check(c, 'saving keeps the warmed entry and its expiry', saved['test warm place']?.expires > Date.now() + 26 * day);
 
+    // --- KW area only ------------------------------------------------------------------------------
+    c = 'KW area';
+    userWithHome(main, 7716, 'Outside area');
+    r = await planCall(main, 7716, { destination: 'Outside Place' });
+    check(c, 'a search result outside the KW area is never used (404)', r.status === 404 && r.json?.error?.code === 'destination_not_found', `${r.status} ${r.json?.error?.code}`);
+    check(c, 'Nominatim is asked with bounded=1 and the tighter KW box', mock.nominatim.filter((n) => n.q === 'Outside Place').every((n) => n.url.includes('bounded=1') && decodeURIComponent(n.url).includes('viewbox=-80.62,43.53,-80.37,43.37')));
+    check(c, 'the outside result is not in the server cache file', !readFileSync(mainEnv.GEOCODE_CACHE_FILE!, 'utf8').includes('Outside Place'));
+
+    // The warm logic (npm run geocode:warm), run here against the mock.
+    c = 'geocode warm';
+    const warmFile = dataDir('warm') + 'geocode.json';
+    rmSync(dataDir('warm'), { recursive: true, force: true });
+    mkdirSync(dataDir('warm'), { recursive: true });
+    process.env.NOMINATIM_BASE_URL = mock.url;
+    process.env.GEOCODE_CACHE_FILE = warmFile;
+    const { warmOne, stationFromStops } = await import('../src/planner/warm.js');
+    let w = await warmOne({ key: 'Outside Place' }, []);
+    check(c, 'outside-the-area result: reported unresolved', !w.ok && /outside the KW area/.test(w.reason), w.ok ? 'resolved' : w.reason);
+    const stA = { ...TEST_GRT.stopA }, stB = { ...TEST_GRT.stopB };
+    const platforms = [
+      { id: 'P1', code: null, name: 'Test Square Station - Northbound', lat: 43.4651, lng: -80.5226 },
+      { id: 'P2', code: null, name: 'Test Square Station - Southbound', lat: 43.4653, lng: -80.5222 },
+    ];
+    const nq0 = mock.nominatim.length;
+    w = await warmOne({ key: 'Test Square Station', stop: 'test square station', aliases: ['the square'] }, [platforms, [stA, stB]]);
+    check(c, 'station from GTFS: no Nominatim request', w.ok && w.via === 'gtfs' && mock.nominatim.length === nq0);
+    check(c, 'station from GTFS: platforms merged, direction dropped', w.ok && w.result.name === 'Test Square Station' && Math.abs(w.result.lat - 43.4652) < 1e-6 && Math.abs(w.result.lng + 80.5224) < 1e-6, w.ok ? `${w.result.name} ${w.result.lat},${w.result.lng}` : '');
+    w = await warmOne({ key: 'Origin stop', stop: TEST_GRT.stopA.name }, [platforms, [stA, stB]]);
+    check(c, 'bus stop from GTFS (second feed)', w.ok && w.result.name === TEST_GRT.stopA.name && mock.nominatim.length === nq0);
+    check(c, 'unknown stop name: unresolved, not guessed', !(await warmOne({ key: 'Nope', stop: 'No Such Station' }, [platforms])).ok);
+    check(c, 'stops too far apart under one name: unresolved', !stationFromStops('Split Stop', [[{ id: 'a', code: null, name: 'Split Stop', lat: 43.45, lng: -80.5 }, { id: 'b', code: null, name: 'Split Stop', lat: 43.47, lng: -80.5 }]]).hasOwnProperty('lat'));
+    w = await warmOne({ key: 'Test Library', expect: { town: 'Waterloo' } }, []);
+    check(c, 'result failing the expected town: unresolved', !w.ok && /passed the checks/.test(w.reason), w.ok ? 'resolved' : w.reason);
+    w = await warmOne({ key: 'Test Library', expect: { name: /Library/, town: 'Kitchener' } }, []);
+    check(c, 'result passing the checks: stored', w.ok && w.via === 'nominatim' && w.result.town === 'Kitchener');
+    const warmCache = JSON.parse(readFileSync(warmFile, 'utf8'));
+    check(c, 'warm cache: stations, aliases and checked results stored with 30-day expiry', ['test square station', 'the square', 'test library'].every((k) => warmCache[k]?.expires > Date.now() + 29 * day));
+    check(c, 'warm cache: nothing outside the area, nothing unresolved', !JSON.stringify(warmCache).includes('Outside Place') && !warmCache['nope'] && !warmCache['outside place']);
+
     // --- Plan cache ---------------------------------------------------------------------------------------
     c = 'plan cache';
     userWithHome(main, 7720, 'Cache off');

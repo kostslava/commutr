@@ -669,7 +669,7 @@ Request:
 ```
 
 - `destination`, required, is one of:
-  - **a string** (max 200 characters). It's matched first against your saved locations (`"home"`, or a label like `"campus"`), then the demo merchants, then a place search limited to Kitchener-Waterloo-Cambridge;
+  - **a string** (max 200 characters). It's matched first against your saved locations (`"home"`, or a label like `"campus"`), then the demo merchants, then a place search limited to Kitchener-Waterloo. Cambridge, Guelph and anything else outside KW aren't found (`404 destination_not_found`). Common places, and ION stations and the Kitchener GO station from the GRT stops data, are pre-loaded by `npm run geocode:warm`;
   - **or a place** `{ "name": "...", "lat": 43.46, "lng": -80.52 }`, for example from a map tap.
 - `origin_lat` and `origin_lng` are optional, and must be sent together. Without them, the origin is your saved home.
 

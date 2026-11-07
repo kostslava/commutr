@@ -263,6 +263,8 @@ export async function startMockProviders(port: number): Promise<Mock> {
       if (/^waterloo public library$/i.test(q)) {
         return send(200, [hit('Kitchener Public Library', 43.47, -80.53, 'Queen Street North', 'Kitchener'), hit('Waterloo Public Library', 43.456, -80.5, 'Albert Street', 'Waterloo')]);
       }
+      // Outside the KW area (Guelph): must never be used or cached.
+      if (/^outside place$/i.test(q)) return send(200, [hit('Outside Place', 43.55, -80.25, 'Gordon Street', 'Guelph')]);
       // Equal names: the nearer one must win; the far one is listed first.
       if (/^test cafe$/i.test(q)) {
         return send(200, [hit('Test Cafe', 43.4, -80.4, 'Far Street', 'Cambridge'), hit('Test Cafe', 43.472, -80.535, 'Near Street', 'Waterloo')]);

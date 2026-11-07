@@ -4,24 +4,43 @@
 //   key:     what a user would say (the cache is looked up by this, case and
 //            spacing ignored)
 //   query:   what is sent to Nominatim (defaults to key)
+//   stop:    resolve from the local GRT stops data instead (exact stop/station name,
+//            no network)
+//   expect:  checks a Nominatim result must pass (name pattern, town); otherwise the
+//            place is reported unresolved rather than guessed
+//   label:   the name to store (for address searches, which have no place name)
 //   aliases: short names that reuse the key's best result
 
-export type WarmPlace = { key: string; query?: string; aliases?: string[] };
+export type WarmPlace = {
+  key: string;
+  query?: string;
+  stop?: string;
+  expect?: { name?: RegExp; town?: string };
+  label?: string;
+  aliases?: string[];
+};
 
 export const WARM_PLACES: WarmPlace[] = [
   { key: 'University of Waterloo', aliases: ['UW', 'UWaterloo'] },
   { key: 'Wilfrid Laurier University', aliases: ['Laurier', 'WLU'] },
   { key: 'Conestoga Mall' },
   { key: 'Waterloo Public Library' },
-  { key: 'Kitchener Public Library' },
+  // The main library downtown (Central Library, Queen Street North), not a branch.
+  { key: 'Kitchener Public Library', query: 'Kitchener Public Library Central Library, Queen Street North, Kitchener', expect: { name: /Central|Queen Street/i, town: 'Kitchener' } },
   { key: 'Kitchener City Hall' },
   { key: 'Waterloo Park' },
   { key: 'Grand River Hospital' },
   { key: "St. Mary's General Hospital" },
-  { key: 'Kitchener GO station' },
-  { key: 'Waterloo ION station' },
-  { key: 'Fairway Station' },
-  { key: 'Conestoga Station' },
+  // The GO/VIA train station: the GRT stop right outside it.
+  { key: 'Kitchener GO station', stop: 'Victoria / Kitchener Train Station', aliases: ['Kitchener train station', 'Kitchener GO'] },
+  // ION stations (and their bus terminals) from the GRT stops data.
+  { key: 'University of Waterloo Station', stop: 'University Of Waterloo Station', aliases: ['UW station'] },
+  { key: 'Waterloo Public Square Station', stop: 'Waterloo Public Square Station' },
+  { key: 'Grand River Hospital Station', stop: 'Grand River Hospital Station' },
+  { key: 'Central Station', stop: 'Central Station' },
+  { key: 'Kitchener City Hall Station', stop: 'Kitchener City Hall Station' },
+  { key: 'Fairway Station', stop: 'Fairway Station' },
+  { key: 'Conestoga Station', stop: 'Conestoga Station' },
   { key: 'Uptown Waterloo' },
   { key: 'Downtown Kitchener' },
   { key: 'The Boardwalk', aliases: ['Boardwalk'] },
@@ -33,7 +52,7 @@ export const WARM_PLACES: WarmPlace[] = [
   { key: 'RIM Park' },
   { key: 'Rockway Gardens' },
   // Added: likely for a student demo.
-  { key: 'Communitech Hub' },
+  { key: 'Communitech Hub', query: '151 Charles Street West, Kitchener', label: 'Communitech Hub', expect: { town: 'Kitchener' } },
   { key: 'THEMUSEUM' },
   { key: 'Centre In The Square' },
   { key: 'Kitchener Memorial Auditorium' },
@@ -41,6 +60,9 @@ export const WARM_PLACES: WarmPlace[] = [
   { key: 'Columbia Lake Waterloo' },
   { key: 'Laurel Creek Conservation Area' },
   { key: "St. Jacobs Farmers' Market" },
-  { key: 'University Plaza' },
+  { key: 'University Plaza', query: 'University Plaza, Waterloo', expect: { town: 'Waterloo' } },
   { key: 'Bingemans' },
 ];
+
+/** Keys from earlier versions of this list that were wrong; removed from the cache by geocode:warm. */
+export const RETIRED_KEYS = ['Waterloo ION station'];

@@ -67,13 +67,21 @@ export const ECO_NOTE_MAX_CHARS = 160;
 
 // --- Nominatim (OpenStreetMap search) -------------------------------------------
 
-export const NOMINATIM_BASE_URL = env.NOMINATIM_BASE_URL || 'https://nominatim.openstreetmap.org';
+/** Read per request, so tests can point it at the mock after this module loaded. */
+export const nominatimBaseUrl = () => process.env.NOMINATIM_BASE_URL || 'https://nominatim.openstreetmap.org';
 export const NOMINATIM_USER_AGENT = 'Commutr/0.1 (hackathon demo)';
 /** Nominatim's usage policy: at most 1 request per second. A little margin on top. */
 export const NOMINATIM_MIN_INTERVAL_MS = 1_100;
 export const GEOCODE_CACHE_MS = 24 * 60 * 60_000;
 /** Places pre-loaded by npm run geocode:warm (src/planner/places-warm.ts) stay this long. */
 export const GEOCODE_WARM_MS = 30 * 24 * 60 * 60_000;
-/** Searches are limited to this box around Kitchener-Waterloo-Cambridge (west, north, east, south). */
-export const KW_VIEWBOX = { west: -80.75, north: 43.56, east: -80.2, south: 43.3 };
+/**
+ * Place searches are limited to this box around Kitchener-Waterloo (west, north, east,
+ * south): Nominatim is asked with bounded=1, and any result outside it is dropped
+ * anyway. Excludes Guelph and Cambridge; includes Conestoga Doon, St. Jacobs Market
+ * and RIM Park.
+ */
+export const KW_VIEWBOX = { west: -80.62, north: 43.53, east: -80.37, south: 43.37 };
+export const inKwArea = (lat: number, lng: number) =>
+  lat >= KW_VIEWBOX.south && lat <= KW_VIEWBOX.north && lng >= KW_VIEWBOX.west && lng <= KW_VIEWBOX.east;
 export const OSM_ATTRIBUTION = 'Search: © OpenStreetMap contributors (Nominatim)';
