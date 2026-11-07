@@ -1,14 +1,19 @@
 // Demo data for Commutr. Everything here is FAKE: people, merchants, rewards and clubs.
 // No real businesses, sponsors or government bodies are involved.
 //
-// `npm run seed` wipes every table and refills it. It is deterministic: fixed IDs,
-// fixed timestamps, no randomness, so running it twice gives identical data.
+// `npm run seed` wipes every table and refills it. Fixed IDs, no randomness.
+//
+// Dates are written below as they were on the day the seed was authored
+// (SEED_AUTHORED_ON, Toronto time) and shifted on insert so that day becomes
+// "today". That keeps streaks, this week's club steps and recent trips looking
+// current in a demo. Running the seed twice on the same day gives identical data.
 //
 // Values like distance_km, confidence and points_awarded are hand-picked to look
 // plausible. They are NOT produced by scoring logic (that does not exist yet), and
 // user point balances are hand-set, not summed from trips.
 
 import { openDb } from './db.js';
+import { addDays, torontoDate, torontoWeekStart } from './time.js';
 
 type Mode = 'walk' | 'bike' | 'scooter' | 'transit' | 'car';
 type LatLng = [lat: number, lng: number];
@@ -77,23 +82,23 @@ const clubMembers = [
   { club_id: 1, user_id: 3, joined_at: '2026-10-20T18:10:00.000Z', steps_this_week: 18200 },
   { club_id: 2, user_id: 2, joined_at: '2026-10-18T12:00:00.000Z', steps_this_week: 31850 },
   { club_id: 2, user_id: 4, joined_at: '2026-10-21T21:45:00.000Z', steps_this_week: 12400 },
-].map((m) => ({ ...m, week_start: '2026-11-02' })); // the Toronto week the fake totals belong to
+].map((m) => ({ ...m, week_start: 'THIS_WEEK' })); // replaced on insert with the current Toronto week
 
 // last_active_date is a Toronto local date.
 const streaks = [
-  { user_id: 1, current_days: 5, longest_days: 12, last_active_date: '2026-11-05' },
-  { user_id: 2, current_days: 2, longest_days: 7, last_active_date: '2026-11-04' },
+  { user_id: 1, current_days: 5, longest_days: 12, last_active_date: '2026-11-06' }, // yesterday: streak alive
+  { user_id: 2, current_days: 2, longest_days: 7, last_active_date: '2026-11-04' }, // 3 days ago: shows as 0 (stale)
   { user_id: 3, current_days: 1, longest_days: 3, last_active_date: '2026-11-06' },
   { user_id: 4, current_days: 1, longest_days: 1, last_active_date: '2026-11-06' },
 ];
 
 const savedLocations = [
-  { id: 1, user_id: 1, label: 'Home', lat: 43.4762, lng: -80.5371 },
-  { id: 2, user_id: 1, label: 'Campus', lat: 43.4723, lng: -80.5449 },
-  { id: 3, user_id: 2, label: 'Home', lat: 43.4598, lng: -80.5162 },
-  { id: 4, user_id: 2, label: 'Work', lat: 43.4253, lng: -80.4392 },
-  { id: 5, user_id: 3, label: 'Home', lat: 43.4441, lng: -80.5068 },
-  { id: 6, user_id: 4, label: 'Home', lat: 43.4975, lng: -80.5262 },
+  { id: 1, user_id: 1, kind: 'home', label: 'Home', lat: 43.4762, lng: -80.5371 },
+  { id: 2, user_id: 1, kind: 'favourite', label: 'Campus', lat: 43.4723, lng: -80.5449 },
+  { id: 3, user_id: 2, kind: 'home', label: 'Home', lat: 43.4598, lng: -80.5162 },
+  { id: 4, user_id: 2, kind: 'favourite', label: 'Work', lat: 43.4253, lng: -80.4392 },
+  { id: 5, user_id: 3, kind: 'home', label: 'Home', lat: 43.4441, lng: -80.5068 },
+  { id: 6, user_id: 4, kind: 'home', label: 'Home', lat: 43.4975, lng: -80.5262 },
 ];
 
 // Named KW places used to draw fake GPS paths.
@@ -131,7 +136,7 @@ type TripSeed = {
 const trips: TripSeed[] = [
   { id: 1, user_id: 1, mode: 'walk', started_at: '2026-11-02T13:10:00.000Z', duration_min: 28, path: [P.uwCampus, P.laurier, P.uptown], point_count: 15, distance_km: 2.3, confidence: 0.95, points_awarded: 22 },
   { id: 2, user_id: 1, mode: 'bike', started_at: '2026-11-03T12:30:00.000Z', duration_min: 18, path: [P.uptown, P.midtownKing, P.downtownKitchener], point_count: 14, distance_km: 4.6, confidence: 1.0, points_awarded: 28 },
-  { id: 3, user_id: 1, mode: 'walk', started_at: '2026-11-05T13:00:00.000Z', duration_min: 22, path: [P.uptown, P.waterlooPark, P.waterlooParkWest, P.uptown], point_count: 12, distance_km: 1.8, confidence: 1.0, points_awarded: 18 },
+  { id: 3, user_id: 1, mode: 'walk', started_at: '2026-11-06T13:00:00.000Z', duration_min: 22, path: [P.uptown, P.waterlooPark, P.waterlooParkWest, P.uptown], point_count: 12, distance_km: 1.8, confidence: 1.0, points_awarded: 18 },
   { id: 4, user_id: 2, mode: 'transit', started_at: '2026-11-02T12:15:00.000Z', duration_min: 32, path: [P.uwCampus, P.uptown, P.ionRoute, P.fairview], point_count: 16, distance_km: 10.5, confidence: 0.9, points_awarded: 28 },
   { id: 5, user_id: 2, mode: 'walk', started_at: '2026-11-04T21:40:00.000Z', duration_min: 15, path: [P.victoriaPark, P.victoriaParkSouth, P.victoriaPark], point_count: 8, distance_km: 1.2, confidence: 0.85, points_awarded: 10 },
   { id: 6, user_id: 3, mode: 'bike', started_at: '2026-11-03T22:05:00.000Z', duration_min: 13, path: [P.belmont, P.midtownKing, P.uptown], point_count: 10, distance_km: 3.0, confidence: 0.9, points_awarded: 16 },
@@ -201,7 +206,25 @@ const TABLES_IN_DELETE_ORDER = [
   'users',
 ];
 
-const insert = (table: string, row: Record<string, unknown>) => {
+// --- Relative dates ----------------------------------------------------------
+const SEED_AUTHORED_ON = '2026-11-07'; // the Toronto day the dates above were written for
+const today = torontoDate();
+const shiftDays = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${SEED_AUTHORED_ON}T12:00:00Z`)) / 86_400_000);
+const TIMESTAMP_KEYS = new Set(['created_at', 'redeemed_at', 'joined_at', 'started_at', 'ended_at', 'timestamp']);
+
+function shiftRow(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (typeof v === 'string' && TIMESTAMP_KEYS.has(k)) out[k] = new Date(Date.parse(v) + shiftDays * 86_400_000).toISOString();
+    else if (k === 'last_active_date' && typeof v === 'string') out[k] = addDays(v, shiftDays);
+    else if (k === 'week_start' && v === 'THIS_WEEK') out[k] = torontoWeekStart();
+    else out[k] = v;
+  }
+  return out;
+}
+
+const insert = (table: string, raw: Record<string, unknown>) => {
+  const row = shiftRow(raw);
   const cols = Object.keys(row);
   db.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${cols.map((c) => '@' + c).join(', ')})`).run(row);
 };
@@ -242,4 +265,4 @@ const counts = Object.fromEntries(
 );
 db.close();
 
-console.log('Seeded demo data:', counts);
+console.log(`Seeded demo data (dates shifted ${shiftDays} day(s) so ${SEED_AUTHORED_ON} = ${today}):`, counts);

@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS redemptions (
   redeemed_at  TEXT    NOT NULL DEFAULT ${NOW}
 );
 CREATE INDEX IF NOT EXISTS idx_redemptions_user ON redemptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_redemptions_user_reward ON redemptions(user_id, reward_id, redeemed_at);
 
 CREATE TABLE IF NOT EXISTS clubs (
   id                INTEGER PRIMARY KEY,
@@ -106,6 +107,7 @@ CREATE TABLE IF NOT EXISTS streaks (
 CREATE TABLE IF NOT EXISTS saved_locations (
   id      INTEGER PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind    TEXT    NOT NULL DEFAULT 'favourite' CHECK (kind IN ('home', 'favourite')),
   label   TEXT    NOT NULL,
   lat     REAL    NOT NULL,
   lng     REAL    NOT NULL
@@ -129,7 +131,9 @@ export function openDb(path = process.env.DB_PATH ?? DEFAULT_DB_PATH): DB {
 // CREATE TABLE IF NOT EXISTS doesn't add columns to tables that already exist.
 // Columns added after the first release are listed here and added on startup,
 // so existing databases keep working without a wipe. Add-only; never drops.
-const ADDED_COLUMNS: Record<string, Record<string, string>> = {
+// `after` runs once, right after the column is added (e.g. to backfill values).
+type AddedColumn = string | { ddl: string; after: string };
+const ADDED_COLUMNS: Record<string, Record<string, AddedColumn>> = {
   trips: {
     flags: "TEXT NOT NULL DEFAULT '[]'",
     eco_delta: 'INTEGER NOT NULL DEFAULT 0',
@@ -138,13 +142,24 @@ const ADDED_COLUMNS: Record<string, Record<string, string>> = {
   club_members: {
     week_start: 'TEXT',
   },
+  saved_locations: {
+    kind: {
+      ddl: "TEXT NOT NULL DEFAULT 'favourite' CHECK (kind IN ('home', 'favourite'))",
+      // Older rows: the seed's "Home" rows become the user's home (one per user).
+      after: `UPDATE saved_locations SET kind = 'home'
+              WHERE label = 'Home' AND id IN (SELECT MIN(id) FROM saved_locations WHERE label = 'Home' GROUP BY user_id)`,
+    },
+  },
 };
 
 function addMissingColumns(db: Database.Database) {
   for (const [table, columns] of Object.entries(ADDED_COLUMNS)) {
     const existing = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name));
-    for (const [name, ddl] of Object.entries(columns)) {
-      if (!existing.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${ddl}`);
+    for (const [name, spec] of Object.entries(columns)) {
+      if (existing.has(name)) continue;
+      const { ddl, after } = typeof spec === 'string' ? { ddl: spec, after: undefined } : spec;
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${ddl}`);
+      if (after) db.exec(after);
     }
   }
 }
