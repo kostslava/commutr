@@ -1,8 +1,10 @@
-// Chat tests. Part 1 is fully mocked (fake Gemini + ElevenLabs, fake keys), so it
-// never spends quota. Part 2 runs only if backend/.env has GEMINI_API_KEY: one real
-// chat turn with a tool, one real speech generation, one real voice round trip.
+// Chat tests.
 //
-//   npm run test:chat
+//   npm run test:chat     mocked only (fake Gemini + ElevenLabs, fake keys): never a
+//                         real provider call. Part of npm test.
+//   ... test-chat.ts --real   only the real part (npm run test:real): one real chat
+//                         turn with a tool, real speech, real Gemini TTS (60 s allowed)
+//                         and a real voice round trip. Needs GEMINI_API_KEY in backend/.env.
 //
 // Servers: 8796 (main, mocked), 8795 (no Gemini key), 8794 (real ceilings, small
 // ElevenLabs budget), 8793/8792 (real run). Mock providers on 8788.
@@ -60,7 +62,8 @@ async function post(h: Harness, userId: number, message: string) {
 
 async function getAudio(h: Harness, url: string | null) {
   if (!url) return { status: 0, type: '', body: Buffer.alloc(0) };
-  const res = await fetch(h.base + url);
+  // Real Gemini speech can be slow: the real servers allow it 60 s, so wait a little longer.
+  const res = await fetch(h.base + url, { signal: AbortSignal.timeout(65_000) });
   const body = Buffer.from(await res.arrayBuffer());
   if ((res.headers.get('content-type') ?? '').includes('json')) responseBodies.push(body.toString());
   return { status: res.status, type: res.headers.get('content-type') ?? '', body };
@@ -342,7 +345,8 @@ function envFileHas(name: string): boolean {
 async function real() {
   console.log('\nREAL END-TO-END');
   if (!envFileHas('GEMINI_API_KEY')) {
-    console.log('  Skipped: backend/.env has no GEMINI_API_KEY.');
+    console.log('  SKIPPED: backend/.env has no GEMINI_API_KEY. Counted as a failure, so a skipped real run never looks like a pass.');
+    failures++;
     return;
   }
   const hasEleven = envFileHas('ELEVENLABS_API_KEY') && envFileHas('ELEVENLABS_VOICE_ID');
@@ -351,7 +355,7 @@ async function real() {
     if (!ok) failures++;
     report.push({ Step: name, Outcome: ok ? 'PASS' : 'FAIL', Result: result, Detail: detail.slice(0, 110), ms });
   };
-  const realEnv = (name: string, extra: Record<string, string> = {}) => ({ ...chatEnv(name, { CHAT_CEILING_MULTIPLIER: '1' }), COMMUTR_ENV_FILE: '', GEMINI_BASE_URL: '', ELEVENLABS_BASE_URL: '', ...extra });
+  const realEnv = (name: string, extra: Record<string, string> = {}) => ({ ...chatEnv(name, { CHAT_CEILING_MULTIPLIER: '1' }), COMMUTR_ENV_FILE: '', GEMINI_BASE_URL: '', ELEVENLABS_BASE_URL: '', GEMINI_TTS_TIMEOUT_MS: '60000', ...extra });
 
   const s1 = await startHarness({ dbName: 'test-chat-real.db', port: 8793, env: realEnv('real') });
   // Gemini voice only (ElevenLabs disabled) to exercise Gemini TTS and transcription.
@@ -414,12 +418,17 @@ async function real() {
 
 // ---------------------------------------------------------------------------
 
+// Default: mocked only (npm test, never a real provider call). --real: only the real part (npm run test:real).
+const REAL = process.argv.includes('--real');
 try {
-  await mocked();
-  console.log('\nCHAT (mocked providers)');
-  table(rows);
-  console.log(`\n${rows.length - failures}/${rows.length} checks passed`);
-  await real();
+  if (REAL) {
+    await real();
+  } else {
+    await mocked();
+    console.log('\nCHAT (mocked providers)');
+    table(rows);
+    console.log(`\n${rows.length - failures}/${rows.length} checks passed`);
+  }
 } catch (err) {
   console.error('TEST FAILED:', err);
   if (rows.length) table(rows);

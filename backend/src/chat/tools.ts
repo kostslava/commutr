@@ -8,9 +8,7 @@ import { Type, type FunctionDeclaration } from '@google/genai';
 import { myClubs } from '../clubs/progress.js';
 import type { DB } from '../db.js';
 import { listRewards } from '../rewards/redeem.js';
-import { DAILY_POINTS_CAP } from '../scoring/config.js';
-import { displayStreak, type StoredStreak } from '../streak.js';
-import { torontoDate, torontoDayRangeUtc } from '../time.js';
+import { userStatus } from '../status.js';
 
 const noParams = { type: Type.OBJECT, properties: {} };
 
@@ -42,20 +40,15 @@ export type ToolName = 'get_my_status' | 'get_affordable_rewards' | 'get_locked_
 export function runTool(db: DB, userId: number, name: string): Record<string, unknown> {
   switch (name as ToolName) {
     case 'get_my_status': {
-      const u = db.prepare('SELECT points, eco_score FROM users WHERE id = ?').get(userId) as { points: number; eco_score: number };
-      const streak = displayStreak(db.prepare('SELECT current_days, longest_days, last_active_date FROM streaks WHERE user_id = ?').get(userId) as StoredStreak | undefined);
-      const [from, to] = torontoDayRangeUtc(torontoDate());
-      const { today } = db
-        .prepare("SELECT COALESCE(SUM(points_awarded), 0) AS today FROM trips WHERE user_id = ? AND status = 'finished' AND ended_at >= ? AND ended_at < ?")
-        .get(userId, from, to) as { today: number };
+      const s = userStatus(db, userId);
       return {
-        points: u.points,
-        eco_score: u.eco_score,
-        streak_days: streak.current_days,
-        longest_streak_days: streak.longest_days,
-        active_today: streak.active_today,
-        points_today: today,
-        daily_cap: DAILY_POINTS_CAP,
+        points: s.points,
+        eco_score: s.eco_score,
+        streak_days: s.streak.current_days,
+        longest_streak_days: s.streak.longest_days,
+        active_today: s.streak.active_today,
+        points_today: s.points_today,
+        daily_cap: s.daily_cap,
       };
     }
     case 'get_affordable_rewards':

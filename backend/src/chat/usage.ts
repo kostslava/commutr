@@ -62,6 +62,15 @@ export function takeProviderCall(key: string): boolean {
   return true;
 }
 
+/** How many more calls a provider's ceiling allows right now (per minute and per day). */
+export function providerRoom(key: string): number {
+  rollDays();
+  const ceiling = CEILINGS[key];
+  if (!ceiling) return Infinity;
+  const recent = (minuteWindows.get(key) ?? []).filter((t) => Date.now() - t < 60_000);
+  return Math.max(0, Math.min(ceiling.perMinute - recent.length, ceiling.perDay - (state.calls.counts[key] ?? 0)));
+}
+
 /** Seconds until a provider call would be allowed again under the per-minute ceiling. */
 export function providerRetryAfterSec(key: string): number {
   const recent = (minuteWindows.get(key) ?? []).filter((t) => Date.now() - t < 60_000);

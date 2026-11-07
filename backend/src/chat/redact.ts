@@ -2,7 +2,7 @@
 // the values of all secret env vars, so a key can't leak through an error message
 // from an SDK or an HTTP response.
 
-const SECRET_VARS = ['GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'ELEVENLABS_VOICE_ID'];
+const SECRET_VARS = ['GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'ELEVENLABS_VOICE_ID', 'AGENT_TOOL_SECRET'];
 
 export function redact(text: string): string {
   let out = text;

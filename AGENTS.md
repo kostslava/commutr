@@ -21,6 +21,9 @@ Two humans, two AI agents (Claude Code and Codex). Each agent works only in its 
 - Place search: Nominatim (OSM). Set a User-Agent, max 1 request per second.
 - Street view: Mapillary (MapillaryJS, free token, must show Mapillary attribution). Crowdsourced, coverage in KW untested.
 - Chatbot: Gemini API (gemini-3.5-flash-lite) for chat with function calling and for voice transcription. Speech: ElevenLabs (eleven_flash_v2_5) first, Gemini TTS as the fallback. Keys in backend/.env (see backend/.env.example), never committed or logged.
+- Live voice agent (the mascot): an ElevenLabs agent. ElevenLabs' servers call the backend's /api/agent/* endpoints as tools. They need a public HTTPS URL: in development, a Cloudflare quick tunnel, whose URL changes on every restart and must be updated in the agent's tool settings. Every call sends the header X-Agent-Secret, which must match AGENT_TOOL_SECRET in backend/.env (never committed or logged). Tool setup: docs/agent-tools.md.
+- Trip planner: POST /api/plan, also /api/agent/plan. Gemini (gemini-3.5-flash-lite, function calling and structured output) chooses, orders and explains the options. Every number (minutes, km, points estimates, next bus) is computed by the backend from the live GRT data, the stops, the scoring config and Nominatim.
+- Route safety: Gemini rating routes from Mapillary photos. Coming in a later task; /api/agent/route-safety is a stub until then.
 - Everything must be free or open source.
 
 ## Live transit (real data, GRT)
@@ -60,11 +63,10 @@ points = verified_km x mode_rate x confidence, with a daily cap.
 - Rewards store (demo merchants, gift cards, local meals)
 - In-app chatbot: suggests places to eat that the user can afford with their current points and eco score; if they cannot afford one, suggests a place to walk, bike or ride to
 - Saved locations (home, favourites)
-- Bike routes with a safety rating (data source not decided yet)
+- Bike routes with a safety rating from Gemini vision over Mapillary street-level photos (coming later)
 - Live bus locations on the map
 
 ## Not decided yet
-- Bike safety rating data source
 - Deployment (local first, Cloudflare optional)
 
 ## Demo data
