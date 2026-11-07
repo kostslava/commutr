@@ -186,3 +186,25 @@ export async function initStaticGtfs(): Promise<void> {
     refreshStaticGtfs().catch((err) => console.warn('[gtfs] refresh error:', err));
   }, cfg.staticCheckIntervalMs).unref();
 }
+
+/**
+ * Load the static feeds from the disk cache only: no download, whatever their age
+ * (for npm run geocode:warm, which must not use the network for stops). Feeds with no
+ * cached file stay null.
+ */
+export async function loadStaticFromDisk(): Promise<void> {
+  const next = await Promise.all(
+    cfg.staticUrls.map(async (url) => {
+      const path = cachePath(url);
+      const cached = await cachedAge(path);
+      if (!cached) return null;
+      try {
+        return parseZip(await readFile(path), url, cached.mtime);
+      } catch {
+        return null;
+      }
+    }),
+  );
+  feeds = next;
+  for (const fn of listeners) fn();
+}

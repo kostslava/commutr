@@ -7,7 +7,8 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as P from './config.js';
 
-export type GeoResult = { name: string; lat: number; lng: number };
+/** `town` is the city or town from the address (for checks and printing), when known. */
+export type GeoResult = { name: string; lat: number; lng: number; town?: string | null };
 
 const CACHE_FILE = process.env.GEOCODE_CACHE_FILE || fileURLToPath(new URL('../../data/geocode-cache.json', import.meta.url));
 
@@ -39,6 +40,8 @@ function save() {
 const normalise = (q: string) => q.toLowerCase().replace(/\s+/g, ' ').trim();
 
 /** "Waterloo Public Library, 35, Albert Street, Uptown, Waterloo, ..." -> "Waterloo Public Library, Albert Street, Waterloo" */
+const townOf = (a: Record<string, string> = {}) => a.city ?? a.town ?? a.village ?? a.municipality ?? null;
+
 function shortName(r: { name?: string; display_name?: string; address?: Record<string, string> }): string {
   const a = r.address ?? {};
   const street = a.road ?? a.pedestrian ?? a.footway;
@@ -53,7 +56,7 @@ let nextSlot = 0;
 export type GeocodeOutcome = { ok: true; results: GeoResult[]; cached: boolean } | { ok: false; reason: 'timeout' | 'error' | 'no_time' };
 
 /** One Nominatim request within the KW box (waits for its 1-per-second slot). No cache. */
-async function search(query: string, timeoutMs: number): Promise<{ ok: true; results: GeoResult[] } | { ok: false; reason: 'timeout' | 'error' | 'no_time' }> {
+async function search(query: string, timeoutMs: number): Promise<{ ok: true; results: GeoResult[]; outside: number } | { ok: false; reason: 'timeout' | 'error' | 'no_time' }> {
   const now = Date.now();
   const waitMs = Math.max(0, nextSlot - now);
   if (waitMs >= timeoutMs - 300) return { ok: false, reason: 'no_time' };
@@ -61,7 +64,7 @@ async function search(query: string, timeoutMs: number): Promise<{ ok: true; res
   if (waitMs) await new Promise((r) => setTimeout(r, waitMs));
 
   const v = P.KW_VIEWBOX;
-  const url = new URL('/search', P.NOMINATIM_BASE_URL);
+  const url = new URL('/search', P.nominatimBaseUrl());
   url.search = new URLSearchParams({
     q: query,
     format: 'jsonv2',
@@ -77,9 +80,11 @@ async function search(query: string, timeoutMs: number): Promise<{ ok: true; res
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body = (await res.json()) as { lat: string; lon: string; name?: string; display_name?: string; address?: Record<string, string> }[];
     const results = body
-      .map((r) => ({ name: shortName(r), lat: Number(r.lat), lng: Number(r.lon) }))
+      .map((r) => ({ name: shortName(r), lat: Number(r.lat), lng: Number(r.lon), town: townOf(r.address) }))
       .filter((r) => r.name && Number.isFinite(r.lat) && Number.isFinite(r.lng));
-    return { ok: true, results };
+    // bounded=1 should already do this; drop anything outside the KW area regardless.
+    const inside = results.filter((r) => P.inKwArea(r.lat, r.lng));
+    return { ok: true, results: inside, outside: results.length - inside.length };
   } catch (err) {
     const timeout = (err as Error).name === 'TimeoutError';
     console.warn(`[planner] place search failed: ${timeout ? 'timed out' : (err as Error).message}`);
@@ -108,3 +113,32 @@ export function storeWarm(key: string, results: GeoResult[]) {
   cache[normalise(key)] = { at, expires: at + P.GEOCODE_WARM_MS, results };
   save();
 }
+
+/** Remove cache entries by key (case and spacing ignored). Returns how many were removed. */
+export function deleteCached(keys: string[]): number {
+  let n = 0;
+  for (const k of keys) {
+    const key = normalise(k);
+    if (key in cache) {
+      delete cache[key];
+      n++;
+    }
+  }
+  save();
+  return n;
+}
+
+/** Remove every cache entry with a result outside the KW area. Returns how many were removed. */
+export function pruneOutsideArea(): number {
+  let n = 0;
+  for (const [k, e] of Object.entries(cache)) {
+    if (e.results.some((r) => !P.inKwArea(r.lat, r.lng))) {
+      delete cache[k];
+      n++;
+    }
+  }
+  save();
+  return n;
+}
+
+export const cachedKeys = () => Object.keys(cache);
