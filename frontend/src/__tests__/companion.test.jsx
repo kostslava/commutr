@@ -12,6 +12,31 @@ afterEach(()=>{cleanup();vi.useRealTimers()});
 beforeEach(()=>{vi.clearAllMocks();api.mockResolvedValue({reply:'I’m here.',source:'gemini',actions:[]});Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:vi.fn().mockResolvedValue({getTracks:()=>[{stop:vi.fn()}]})}})});
 const context={page:'Home',activeTrip:null};
 describe('mascot companion',()=>{
+ async function liveVoice(execute=vi.fn()){
+  const current={endSession:vi.fn(),sendContextualUpdate:vi.fn()};voice.startSession.mockResolvedValue(current);api.mockResolvedValue({signed_url:'wss://example.test/session'});
+  render(<Companion execute={execute} context={context}/>);fireEvent.click(screen.getByLabelText('Open Muta'));fireEvent.click(screen.getByRole('button',{name:'Let’s talk'}));await screen.findByLabelText('Mute microphone');return {current,options:voice.startSession.mock.calls[0][0]};
+ }
+ it.each([
+  [Object.assign(new Error('Too many discovery requests. Try again soon.'),{status:429,data:{retry_after_sec:17}}),'Try again in 17 seconds'],
+  [Object.assign(new Error('Too many discovery requests. Try again soon.'),{status:429,data:{}}),'Too many discovery requests'],
+  [new Error('Network unavailable'),'Network unavailable'],
+  [Object.assign(new Error('Places unavailable'),{status:500}),'Places unavailable']
+ ])('returns discovery failures as speakable results and keeps the call live',async(error,summary)=>{
+  const {current,options}=await liveVoice();api.mockRejectedValueOnce(error);let result;
+  await act(async()=>{result=await options.clientTools.discover_places({query:'quiet parks'})});
+  expect(result.ok).toBe(false);expect(result.summary).toContain(summary);expect(api).toHaveBeenLastCalledWith('/companion/discover',{query:'quiet parks'});expect(screen.getByLabelText('Mute microphone')).toBeTruthy();expect(screen.queryByRole('alert')).toBeNull();expect(current.endSession).not.toHaveBeenCalled();
+  const places={ok:true,places:[{name:'Waterloo Park'}]};api.mockResolvedValueOnce(places);expect(await options.clientTools.discover_places({query:'parks'})).toBe(places);
+ });
+ it('includes retry timing on plan errors too',async()=>{
+  const execute=vi.fn().mockRejectedValue(Object.assign(new Error('Too many plans'),{status:429,data:{retry_after_sec:12}}));const {options}=await liveVoice(execute);
+  expect((await options.clientTools.plan_trip({destination:'Victoria Park'})).summary).toContain('Try again in 12 seconds');
+ });
+ it('does not report a disconnect for a tool error while the SDK call is live',async()=>{
+  const {current,options}=await liveVoice();await act(async()=>{options.onError('Client tool execution failed',{clientToolName:'discover_places'})});expect(screen.queryByRole('alert')).toBeNull();expect(screen.getByText('Listening…')).toBeTruthy();expect(screen.getByLabelText('Mute microphone')).toBeTruthy();expect(current.endSession).not.toHaveBeenCalled();
+  await act(async()=>{options.onError('Temporary provider error')});expect(screen.queryByText(/call was interrupted|End the call and try again/)).toBeNull();expect(screen.getByLabelText('Mute microphone')).toBeTruthy();
+  await act(async()=>{options.onDisconnect({reason:'error',message:'Socket closed'})});expect(screen.getByRole('alert').textContent).toContain('disconnected');expect(screen.getByRole('button',{name:'Try again'})).toBeTruthy();
+ });
+
  it('returns the route-safety JSON from the shared action as the voice tool result',async()=>{
   const result={available:true,summary:'Comfortable sidewalks.',rating:{overall:'good'},attribution:['Mapillary CC BY-SA 4.0']};
   const execute=vi.fn().mockResolvedValue(result);voice.startSession.mockResolvedValue({endSession:vi.fn(),sendContextualUpdate:vi.fn()});api.mockResolvedValue({signed_url:'wss://example.test/session'});
