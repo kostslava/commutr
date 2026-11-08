@@ -18,7 +18,8 @@ export default function companionActions({navigate,setRoute,setMode,tracker,back
   }
   if(action.type==='start_trip'){
    if(tracker.trip)return {ok:false,summary:'You already have a trip in progress. Open the map to resume it.'};
-   navigate('Explore');const trip=await tracker.start(action.mode);return trip?{ok:true,summary:`Your ${action.mode} trip is recording. Keep Commutr open.`}:{ok:false,summary:'Trip did not start. Check the location message on the map.'};
+   const route=getMapRoute(),option=route?.options?.find(o=>o.mode===action.mode),destination=route?.destination?.name||route?.map_destination?.name;
+   navigate('Explore');const trip=await tracker.start(action.mode,{demo:true,...(destination?{destination}:{}),...(Number.isFinite(option?.km)&&option.km>0?{distance_km:option.km}:{})});return trip?{ok:true,tracking:'photo',summary:`Your ${action.mode} trip has started. Add a photo on the map before finishing.`}:{ok:false,summary:'Trip did not start. Check the message on the map and retry.'};
   }
   if(action.type==='finish_trip'){
    if(!tracker.trip)return {ok:false,summary:'There’s no active trip to finish.'};

@@ -1,6 +1,7 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 import {renderHook,act,waitFor,cleanup} from '@testing-library/react';
 import useTripTracker from '../useTripTracker';
+import companionActions from '../useCompanionActions';
 import {api} from '../api';
 vi.mock('../api',()=>({api:vi.fn()}));
 let gpsCallback;
@@ -100,4 +101,14 @@ it('shows review before crediting points and ignores duplicate finish requests',
   await act(async()=>{expect(await result.current.finish()).toBeUndefined();await vi.advanceTimersByTimeAsync(2199)});expect(result.current.trip).not.toBeNull();expect(localStorage.getItem('commutr:photo-trips:v1:user:1')).toBeNull();
   let awarded;await act(async()=>{await vi.advanceTimersByTimeAsync(1);awarded=await finished});expect(awarded.trip.points_awarded).toBe(10);expect(result.current.reviewing).toBe(false);expect(result.current.busy).toBe(false);expect(JSON.parse(localStorage.getItem('commutr:photo-trips:v1:user:1'))).toHaveLength(1);
  }finally{vi.useRealTimers()}
+});
+
+it.each(['blocked','unavailable'])('Muta starts the planned route when location is %s',async(location)=>{
+ Object.defineProperty(navigator,'permissions',{value:{query:vi.fn().mockResolvedValue({state:'denied'})},configurable:true});if(location==='unavailable')Object.defineProperty(navigator,'geolocation',{value:undefined,configurable:true});
+ try{
+  const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});const navigate=vi.fn();
+  const execute=companionActions({tracker:result.current,navigate,getMapRoute:()=>({destination:{name:'Kitchener Market'},options:[{mode:'walk',km:1.3},{mode:'bike',km:.9}]})});
+  let response;await act(async()=>{response=await execute({type:'start_trip',mode:'bike'})});
+  expect(response).toMatchObject({ok:true,tracking:'photo'});expect(response.summary).not.toContain('recording');expect(result.current.trip).toMatchObject({mode:'bike',demo:true,demo_destination:'Kitchener Market',distance_km:.9});expect(result.current.error).toBe('');expect(geo.watchPosition).not.toHaveBeenCalled();expect(navigator.permissions.query).not.toHaveBeenCalled();expect(api.mock.calls.some(([path,body])=>path==='/trips'&&body)).toBe(false);expect(navigate).toHaveBeenCalledWith('Explore');
+ }finally{delete navigator.permissions}
 });
