@@ -1,0 +1,12 @@
+{
+  "agent_id": "agent_3301m6w8q48pej2sk9wd76enegxr",
+  "tool_ids": {
+    "get_status": "tool_1101m6w8pwq2e8yscpefakgqptq8",
+    "get_rewards": "tool_2901m6w8pxv3fcbbtqfcybzksvzd",
+    "redeem_reward": "tool_8201m6w8pyyyfx8b4ykvg5heftp6",
+    "plan_trip": "tool_6401m6w8q03qe4k8vmxd75k856y4",
+    "start_trip": "tool_8701m6w8q17ge3kvdzy3fvsq6pfe",
+    "finish_trip": "tool_0701m6w8q2bees48359kwyja8z4g",
+    "get_route_safety": "tool_1801m6w8q3nwes89p1vajymjxh97"
+  }
+}
