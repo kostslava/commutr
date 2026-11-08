@@ -6,10 +6,17 @@ vi.mock('../api',()=>({api:vi.fn()}));
 let gpsCallback;
 const point=()=>({coords:{latitude:43.45,longitude:-80.49,accuracy:5},timestamp:Date.now()});
 const geo={getCurrentPosition:vi.fn(),watchPosition:vi.fn(),clearWatch:vi.fn()};
-beforeEach(()=>{api.mockReset();Object.defineProperty(navigator,'geolocation',{value:geo,configurable:true});geo.getCurrentPosition.mockImplementation(resolve=>resolve(point()));geo.watchPosition.mockImplementation(cb=>{gpsCallback=cb;return 42});geo.clearWatch.mockReset();api.mockImplementation(async(path)=>path==='/trips'?{trips:[]}:{});});
+beforeEach(()=>{api.mockReset();geo.getCurrentPosition.mockClear();geo.watchPosition.mockClear();Object.defineProperty(navigator,'geolocation',{value:geo,configurable:true});geo.getCurrentPosition.mockImplementation(resolve=>resolve(point()));geo.watchPosition.mockImplementation(cb=>{gpsCallback=cb;queueMicrotask(()=>cb(point()));return 42});geo.clearWatch.mockReset();api.mockImplementation(async(path)=>path==='/trips'?{trips:[]}:{});});
 afterEach(cleanup);
 describe('foreground trip lifecycle',()=>{
- it('requests location before starting a backend trip, uploads ISO points, then scores and refreshes',async()=>{
+ it('does not prompt on mount and coalesces repeated start requests',async()=>{
+  api.mockImplementation(async(path,body)=>body?{id:22,mode:'walk',status:'active'}:{trips:[]});
+  const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});
+  expect(geo.watchPosition).not.toHaveBeenCalled();expect(geo.getCurrentPosition).not.toHaveBeenCalled();
+  await act(async()=>{await Promise.all([result.current.start('Walk'),result.current.start('Walk')])});
+  expect(geo.watchPosition).toHaveBeenCalledOnce();expect(geo.getCurrentPosition).not.toHaveBeenCalled();
+ });
+ it('requests location once when starting a backend trip, uploads ISO points, then scores and refreshes',async()=>{
   const refresh=vi.fn();api.mockImplementation(async(path,body)=>path==='/trips'?(body?{id:9,mode:'transit',status:'active'}:{trips:[]}):path.endsWith('/points')?{accepted:body.points.length}:path.endsWith('/finish')?{points_awarded:18}:{});
   const {result}=renderHook(()=>useTripTracker(refresh));await act(async()=>{});
   await act(async()=>{await result.current.start('Transit')});await waitFor(()=>expect(result.current.samples).toBe(1));
@@ -19,13 +26,13 @@ describe('foreground trip lifecycle',()=>{
   await act(async()=>{await result.current.finish()});expect(geo.clearWatch).toHaveBeenCalledWith(42);expect(api).toHaveBeenCalledWith('/trips/9/finish',{});expect(result.current.trip).toBe(null);expect(refresh).toHaveBeenCalledOnce();
  });
  it.each(['Walk','Bike','Transit'])('starts %s while GPS is acquiring a fix, then uploads only real positions',async(mode)=>{
-  geo.getCurrentPosition.mockImplementation((_,reject)=>reject({code:3,message:'Timeout expired'}));
+  geo.watchPosition.mockImplementation(cb=>{gpsCallback=cb;return 42});
   api.mockImplementation(async(path,body)=>path==='/trips'?(body?{id:20,mode:body.mode,status:'active'}:{trips:[]}):{accepted:body.points.length});
   const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});
   await act(async()=>{await result.current.start(mode)});
   expect(result.current.trip?.mode).toBe(mode.toLowerCase());expect(result.current.recording).toBe(true);expect(result.current.waitingForLocation).toBe(true);
   expect(result.current.error).toBe('');expect(api.mock.calls.some(([p])=>p.endsWith('/points'))).toBe(false);
-  expect(geo.getCurrentPosition).toHaveBeenCalledWith(expect.any(Function),expect.any(Function),expect.objectContaining({enableHighAccuracy:false,maximumAge:30000}));
+  expect(geo.getCurrentPosition).not.toHaveBeenCalled();expect(geo.watchPosition).toHaveBeenCalledWith(expect.any(Function),expect.any(Function),expect.objectContaining({enableHighAccuracy:false,maximumAge:30000}));
   await act(async()=>{gpsCallback(point())});
   await waitFor(()=>expect(result.current.samples).toBe(1));expect(result.current.waitingForLocation).toBe(false);
  });
@@ -38,7 +45,7 @@ describe('foreground trip lifecycle',()=>{
   await act(async()=>{watchError({code:1,message:'denied'})});expect(result.current.recording).toBe(false);expect(result.current.error).toMatch(/Allow location/);expect(geo.clearWatch).toHaveBeenCalledWith(42);
  });
  it('does not start a trip when location permission is denied',async()=>{
-  geo.getCurrentPosition.mockImplementation((_,reject)=>reject({code:1,message:'denied'}));const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});await act(async()=>{await result.current.start('Bike')});expect(result.current.error).toMatch(/Allow location/);expect(api.mock.calls.some(([p,b])=>p==='/trips'&&b)).toBe(false);expect(result.current.trip).toBe(null);
+  Object.defineProperty(navigator,'permissions',{value:{query:vi.fn().mockResolvedValue({state:'denied'})},configurable:true});const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});await act(async()=>{await result.current.start('Bike')});expect(result.current.error).toMatch(/Location is blocked/);expect(geo.watchPosition).not.toHaveBeenCalled();expect(api.mock.calls.some(([p,b])=>p==='/trips'&&b)).toBe(false);expect(result.current.trip).toBe(null);delete navigator.permissions;
  });
  it('resumes an existing trip without creating another and retries a failed GPS upload before finishing',async()=>{
   let uploads=0;api.mockImplementation(async(path,body)=>path==='/trips'?{trips:[{id:11,mode:'walk',status:'active'}]}:path.endsWith('/points')?(++uploads===1?Promise.reject(new Error('offline')):{accepted:body.points.length}):{points_awarded:4});

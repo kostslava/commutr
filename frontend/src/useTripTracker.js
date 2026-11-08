@@ -8,20 +8,18 @@ export default function useTripTracker(refresh){const[trip,setTrip]=useState(nul
   starting.current=true;setBusy(true);setError('');
   try{
    if(!navigator.geolocation)throw new Error('Location is unavailable in this browser.');
-   // A network/cached fix works indoors; a fresh high-accuracy GPS fix may time out.
-   // Temporary unavailability must not block creating a journey or watching for a fix.
-   let first=null;
-   try{first=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:false,maximumAge:30000,timeout:8000}))}
-   catch(e){if(e.code!==2&&e.code!==3)throw e}
+   // One watch owns the permission request and ongoing fixes. Requesting a
+   // one-shot fix as well can show two prompts in embedded browsers.
+   const permission=await navigator.permissions?.query({name:'geolocation'}).catch(()=>null);
+   if(permission?.state==='denied')throw new Error('Location is blocked. Enable it in your browser settings, then resume.');
    let active=trip;
    if(!active){active=await api('/trips',{mode:mode.toLowerCase()});setTrip(active);idRef.current=active.id;setSamples(0)}
-   setWaitingForLocation(!first);
-   if(first)add(first);
+   setWaitingForLocation(true);
    setRecording(true);
    watch.current=navigator.geolocation.watchPosition(add,e=>{
     if(e.code===1){navigator.geolocation.clearWatch(watch.current);watch.current=null;setRecording(false);setWaitingForLocation(false);setError('Allow location to record your trip.')}
-    else{setWaitingForLocation(true);setError('Waiting for your location. Keep Commutr open; tracking will resume when a fix is available.')}
-   },{enableHighAccuracy:true,maximumAge:4000,timeout:20000});
+    else{setWaitingForLocation(true);setError('')}
+   },{enableHighAccuracy:false,maximumAge:30000,timeout:20000});
    return active;
   }catch(e){setError(e.code===1?'Allow location to record your trip.':e.message)}
   finally{starting.current=false;setBusy(false)}
