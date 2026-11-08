@@ -27,3 +27,7 @@ This ledger is temporary: it does not modify backend balances, reward affordabil
 Trip completion shows a short Muta review animation before revealing or crediting browser points. Duplicate finish requests are ignored during review. The mobile navigation bar sits 6 px above the bottom safe-area inset.
 
 Muta's `start_trip` tool uses the photo trip path without requesting geolocation. It carries the currently planned route's destination and the selected mode's distance into the tracker, so photo completion can calculate points. Without a plan it can still start; choose a destination on the map before finishing. The tool confirms that the trip started and asks for a photo, rather than claiming GPS is recording.
+
+## Wallet reset
+
+The bottom of Wallet has a “Reset wallet” button. It calls `POST /api/me/reset`, which atomically restores shared demo user 1 to 3,200 points, eco 98 and trust 1, deletes that user's redemptions and trips, and returns the fresh wallet/catalogue. Other users, reward definitions, saved locations and club memberships remain unchanged. The client clears browser photo credits and trip state only after server success, and ignores old refresh/GPS responses. Reset is unavailable while a trip operation or redemption is running.

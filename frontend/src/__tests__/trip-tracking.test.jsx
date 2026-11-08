@@ -112,3 +112,8 @@ it.each(['blocked','unavailable'])('Muta starts the planned route when location 
   expect(response).toMatchObject({ok:true,tracking:'photo'});expect(response.summary).not.toContain('recording');expect(result.current.trip).toMatchObject({mode:'bike',demo:true,demo_destination:'Kitchener Market',distance_km:.9});expect(result.current.error).toBe('');expect(geo.watchPosition).not.toHaveBeenCalled();expect(navigator.permissions.query).not.toHaveBeenCalled();expect(api.mock.calls.some(([path,body])=>path==='/trips'&&body)).toBe(false);expect(navigate).toHaveBeenCalledWith('Explore');
  }finally{delete navigator.permissions}
 });
+it('clears recording on reset and ignores a GPS upload that finishes afterward',async()=>{
+ let uploaded;api.mockImplementation(async(path)=>path==='/trips'?{trips:[{id:91,mode:'walk',status:'active'}]}:new Promise(resolve=>{uploaded=resolve}));
+ const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});await act(async()=>{await result.current.start('walk')});expect(result.current.recording).toBe(true);
+ act(()=>{result.current.reset()});expect(result.current.trip).toBeNull();expect(geo.clearWatch).toHaveBeenCalledWith(42);expect(result.current.recording).toBe(false);await act(async()=>{uploaded({accepted:1})});expect(result.current.samples).toBe(0);expect(result.current.error).toBe('');
+});

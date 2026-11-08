@@ -1070,3 +1070,9 @@ The original live voice agent design ran its tools on our server: ElevenLabs' se
 For a no-GPS rehearsal, `POST /api/trips` accepts `demo: true` and `demo_destination` equal to one of the six map suggestions. The server chooses the fixed illustrative distance; the client cannot supply it. Demo trips require a photo before `/finish`, reject GPS sample submissions, and return `trip.demo: true`. Demo points use the configured mode rate and daily cap, with no changes to eco score, trust, streaks, or club steps. In production, rehearsal creation requires `DEMO_TRIPS_ENABLED=1`. A hand-drawn ticket is suitable for this explicitly labelled demonstration; it is not validated as a real fare ticket.
 
 Trip lists and details include `demo`, `demo_destination`, and `evidence_status`, so an active photo submission survives refresh. Existing databases receive additive columns and the evidence table on startup, without a reset.
+
+### `POST /api/me/reset` — reset the shared demo wallet
+
+No body is required. Only demo user 1 may call this endpoint; other users receive `403 demo_only`. One transaction restores points to 3,200, eco score to 98 and trust to 1, deletes user 1's redemptions and trips (including dependent GPS samples and evidence), and resets the daily points budget through that trip cleanup. It preserves other users, the reward catalogue, saved locations, clubs and memberships. Repeating it has the same result.
+
+Returns `{ "ok": true, "me": <GET /api/me shape>, "rewards": [...], "redemptions": [], "trips": [], "clubs": [...] }`. The frontend also clears its browser photo-trip ledger after success. This endpoint is for the app's shared seeded demo account, not real-user account management.
