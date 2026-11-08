@@ -6,7 +6,7 @@ vi.mock('../api',()=>({api:vi.fn()}));
 let gpsCallback;
 const point=()=>({coords:{latitude:43.45,longitude:-80.49,accuracy:5},timestamp:Date.now()});
 const geo={getCurrentPosition:vi.fn(),watchPosition:vi.fn(),clearWatch:vi.fn()};
-beforeEach(()=>{sessionStorage.clear();api.mockReset();geo.getCurrentPosition.mockClear();geo.watchPosition.mockClear();Object.defineProperty(navigator,'geolocation',{value:geo,configurable:true});geo.getCurrentPosition.mockImplementation(resolve=>resolve(point()));geo.watchPosition.mockImplementation(cb=>{gpsCallback=cb;queueMicrotask(()=>cb(point()));return 42});geo.clearWatch.mockReset();api.mockImplementation(async(path)=>path==='/trips'?{trips:[]}:{});});
+beforeEach(()=>{sessionStorage.clear();localStorage.clear();api.mockReset();geo.getCurrentPosition.mockClear();geo.watchPosition.mockClear();Object.defineProperty(navigator,'geolocation',{value:geo,configurable:true});geo.getCurrentPosition.mockImplementation(resolve=>resolve(point()));geo.watchPosition.mockImplementation(cb=>{gpsCallback=cb;queueMicrotask(()=>cb(point()));return 42});geo.clearWatch.mockReset();api.mockImplementation(async(path)=>path==='/trips'?{trips:[]}:{});});
 afterEach(cleanup);
 describe('foreground trip lifecycle',()=>{
  it('does not prompt on mount and coalesces repeated start requests',async()=>{
@@ -56,14 +56,14 @@ describe('foreground trip lifecycle',()=>{
   const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});await act(async()=>{await result.current.start('Bike')});await act(async()=>{await result.current.finish()});expect(result.current.trip.id).toBe(12);expect(result.current.recording).toBe(false);expect(result.current.error).toMatch(/Reconnect/);expect(api.mock.calls.some(([p])=>p.endsWith('/finish'))).toBe(false);
  });
 });
-it('completes a local photo demo without a server trip, upload, GPS or account points',async()=>{
+it('completes a local photo demo without a server trip, upload or GPS and awards distance-based points',async()=>{
  const refresh=vi.fn();const {result}=renderHook(()=>useTripTracker(refresh));await act(async()=>{});api.mockClear();
  await act(async()=>{await result.current.start('Transit',{demo:true,destination:'Kitchener GO station',distance_km:1.2})});
  expect(geo.watchPosition).not.toHaveBeenCalled();expect(geo.getCurrentPosition).not.toHaveBeenCalled();expect(result.current.trip.demo).toBe(true);
- await act(async()=>{await result.current.finish()});expect(result.current.error).toContain('Add a demo photo');expect(result.current.trip).not.toBeNull();
+ await act(async()=>{await result.current.finish()});expect(result.current.error).toContain('Add a photo');expect(result.current.trip).not.toBeNull();
  const photo=new File(['photo'],'ticket.png',{type:'image/png'});await act(async()=>{await result.current.uploadEvidence(photo)});
  expect(result.current.trip.evidence_status).toBe('submitted');expect(result.current.trip.evidence_local).toBe(true);
- let finished;await act(async()=>{finished=await result.current.finish()});expect(finished.trip).toMatchObject({local_demo:true,points_awarded:0,distance_km:1.2});expect(result.current.trip).toBe(null);expect(api).not.toHaveBeenCalled();expect(refresh).not.toHaveBeenCalled();
+ let finished;await act(async()=>{finished=await result.current.finish()});expect(finished.trip).toMatchObject({local_demo:true,points_awarded:14,distance_km:1.2});expect(result.current.trip).toBe(null);expect(api).not.toHaveBeenCalled();expect(refresh).not.toHaveBeenCalled();
 });
 it('accepts a demo photo for stale trip 12 without contacting its missing upload endpoint',async()=>{
  api.mockImplementation(async(path)=>path==='/trips'?{trips:[{id:12,mode:'bike',status:'active'}]}:Promise.reject(new Error('No trip 12')));
