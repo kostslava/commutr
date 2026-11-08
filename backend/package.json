@@ -13,7 +13,7 @@
     "seed": "tsx src/seed.ts",
     "test:scoring": "tsx scripts/test-scoring.ts",
     "test:rewards": "tsx scripts/test-rewards-clubs.ts",
-    "test": "npm run test:scoring && npm run test:rewards && npm run test:chat && npm run test:planner",
+    "test": "npm run test:scoring && npm run test:rewards && npm run test:chat && npm run test:planner && npm run test:companion",
     "chat:warm": "tsx scripts/chat-warm.ts",
     "test:chat": "tsx scripts/test-chat.ts",
     "test:planner": "tsx scripts/test-planner.ts",
@@ -21,7 +21,9 @@
     "geocode:warm": "tsx scripts/geocode-warm.ts",
     "agent:setup": "tsx scripts/elevenlabs-agent.ts setup",
     "agent:verify": "tsx scripts/elevenlabs-agent.ts verify",
-    "agent:test": "tsx scripts/elevenlabs-agent.ts test"
+    "agent:test": "tsx scripts/elevenlabs-agent.ts test",
+    "companion:setup": "tsx scripts/companion-setup.ts",
+    "test:companion": "tsx scripts/test-companion.ts"
   },
   "dependencies": {
     "@google/genai": "^3.0.0",

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="756" height="202" viewBox="0 0 756 202">
+  <defs><linearGradient id="wave" x1="0" x2="252" gradientUnits="userSpaceOnUse" spreadMethod="repeat">
+    <stop offset="0" stop-color="rgb(128,128,128)"/>
+    <stop offset=".125" stop-color="rgb(128,218,128)"/>
+    <stop offset=".25" stop-color="rgb(128,255,128)"/>
+    <stop offset=".375" stop-color="rgb(128,218,128)"/>
+    <stop offset=".5" stop-color="rgb(128,128,128)"/>
+    <stop offset=".625" stop-color="rgb(128,37,128)"/>
+    <stop offset=".75" stop-color="rgb(128,0,128)"/>
+    <stop offset=".875" stop-color="rgb(128,37,128)"/>
+    <stop offset="1" stop-color="rgb(128,128,128)"/>
+  </linearGradient></defs>
+  <path fill="url(#wave)" d="M0 0H756V202H0Z"/>
+</svg>

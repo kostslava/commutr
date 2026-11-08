@@ -1,0 +1,12 @@
+{
+  "name": "commutr-app",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix backend ci && npm --prefix frontend ci",
+    "dev": "npm --prefix frontend run dev",
+    "backend:start": "npm --prefix backend run dev",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "test": "npm --prefix frontend test && npm --prefix backend test",
+    "preview": "npm --prefix frontend run preview"
+  }
+}

@@ -124,6 +124,8 @@ async function mocked() {
   check(c, 'matching speed (typo, 200 runs)', (performance.now() - t0) / 200 < 5, `${((performance.now() - t0) / 200).toFixed(2)} ms each`);
 
   const mock = await startMockProviders(8788);
+  // Isolate quota accounting from delayed audio requests in earlier scenarios.
+  const warmMock = await startMockProviders(8789);
   const main = await startHarness({ dbName: 'test-chat.db', port: 8796, env: chatEnv('main', {}, mock.url) });
   const servers: Harness[] = [main];
   try {
@@ -297,9 +299,9 @@ async function mocked() {
 
     // --- Warm script ---------------------------------------------------------------------------------
     c = 'chat:warm';
-    mock.state.eleven = 'normal';
-    mock.state.elevenAllowance = 3; // 3 more successes, then quota
-    const warmEnv = chatEnv('warm', { CHAT_WARM_PAUSE_MS: '0' }, mock.url);
+    warmMock.state.eleven = 'normal';
+    warmMock.state.elevenAllowance = 3; // 3 more successes, then quota
+    const warmEnv = chatEnv('warm', { CHAT_WARM_PAUSE_MS: '0' }, warmMock.url);
     const warm = await runScript(['scripts/chat-warm.ts'], warmEnv);
     const out = warm.stdout + warm.stderr;
     extraLogs.push(out);
@@ -329,6 +331,7 @@ async function mocked() {
     }
     for (const s of servers) { s.db.close(); await s.stop(); }
     await mock.stop();
+    await warmMock.stop();
   }
 }
 
