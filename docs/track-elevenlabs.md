@@ -38,11 +38,24 @@ Muta's tools are **browser (client) tools**. ElevenLabs sends each tool call to 
 | `navigate` | Switches to Home, Map, Shop, Wallet or Community |
 | `plan_trip` | Plans with the backend trip planner, then draws the route and options on the map |
 | `start_trip` | Starts the app's foreground GPS tracker for the chosen mode |
-| `finish_trip` | Uploads pending GPS points, then finishes and scores the trip |
-| `redeem_reward` | Re-reads the catalogue, checks eligibility, then redeems and opens the Wallet |
+| `finish_trip` | Asks for a spoken yes first (see below), then uploads pending GPS points and finishes and scores the trip |
+| `redeem_reward` | Re-reads the catalogue and checks eligibility, asks for a spoken yes with the real reward and price, then redeems and opens the Wallet |
+| `get_route_safety` | Gets the Gemini street-photo safety rating for the planned route (`POST /api/companion/route-safety`) and shows it on the map with its notes and Mapillary attribution. Only 4 demo routes are rated; others get "no data" |
 
-- **Every action passes one allow-listed check** (`validAction` in `companionActions.js`) before it runs. The backend stays the authority for points, eligibility and balances, so the agent can't invent a reward, a price or a balance.
+- **Every action passes one allow-listed check** (`validAction` in `companionActions.js`) before it runs, and voice actions that spend points or end a trip pass the spoken-confirmation check below. The backend stays the authority for points, eligibility and balances, so the agent can't invent a reward, a price or a balance.
 - **Tool results also update the screen** (`onAgentToolResponse`): a planned trip appears on the map, a redemption refreshes the Wallet, a rewards question opens the Shop.
+
+### Spoken confirmation for actions that spend points or end a trip
+
+**Code:** `frontend/src/voiceActions.js`, used by `finish_trip` and `redeem_reward` in `frontend/src/Companion.jsx`.
+
+- The first voice call to `finish_trip` or `redeem_reward` doesn't run. It returns `code: "voice_confirmation_required"` with the question to say, for example "$5 Maple Loop Coffee card at Maple Loop Coffee costs 500 points. Should I redeem it?" The reward and price come from the real catalogue.
+- The action runs only when a **new user transcript** (from the call's `onMessage` events, user role only) is a clear yes, and the agent then repeats the same call within 2 minutes.
+- A "no", "wait", "cancel" or unrelated reply, a changed reward or price, a different active trip, or the 2-minute timeout cancels it, and a fresh question is needed. A `confirm` flag sent by the model can't skip the check, and the agent's own words never count as a yes.
+- The confirmed action is bound to what was asked: the exact points cost or trip ID is checked again just before it runs.
+- `start_trip`, typed Muta and the on-screen buttons run directly, as before.
+
+This is enforced in the app, not in the agent's settings.
 
 ## 4. How the agent is configured
 
@@ -54,6 +67,8 @@ Muta's tools are **browser (client) tools**. ElevenLabs sends each tool call to 
 - `enable_auth: true` with an empty allowlist (signed sessions only).
 
 The script doesn't set the agent's LLM or voice; those stay as already configured on ElevenLabs.
+
+The saved prompt predates two later app changes: it tells Muta to run tools directly and says route safety is unavailable. The live agent hasn't been changed since. The app adds the confirmation step itself (through `sendContextualUpdate` and the tool's own response, which carries the question to ask), and `get_route_safety` now returns real ratings for the 4 demo routes.
 
 ## 5. ElevenLabs speech for chat replies (built in the backend, not in the current UI)
 

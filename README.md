@@ -52,22 +52,24 @@ The backend reads the real Grand River Transit feeds from the Region of Waterloo
 - GTFS-realtime vehicle positions and trip updates for buses (feed 1) and ION light rail (feed 2);
 - the static GTFS schedule and stops.
 
-It parses the protobuf and serves plain JSON. Live buses show on the map, the trip planner uses the next live departure, and transit trips are checked against real stop locations. If a feed fails, it falls back to clearly marked fake bus data.
+It parses the protobuf and serves plain JSON. Live buses show on the map, the trip planner uses the next live departure, and transit trips are checked against real stop locations. If a feed fails, it falls back to clearly marked fake bus data. On the Map screen, the transit option for the 6 suggested destinations is labelled demo data ("Demo transit · illustrative timing"), not a live timetable.
 
 ## Features
 
-- **Map:** search KW places, see walk, bike and transit options with minutes, km and estimated points, and start, record and finish a trip. Live buses show in transit mode.
+- **Map:** search KW places, see walk, bike and transit options with minutes, km and estimated points, and start, record and finish a trip. Live buses show in transit mode. You can attach a trip photo (JPG, PNG or WebP, up to 5 MB). It's stored as supporting evidence only: no AI looks at it, and normal trips are still scored from GPS.
+- **Demo trips (no GPS):** a labelled rehearsal mode for the 6 suggested destinations. The server fixes the distance, a photo is required to finish, and the trip earns points but never changes the eco score, trust, streaks or clubs. Off by default on a production server.
 - **Shop:** eco-gated demo rewards, with a redemption code on redeem. An "Around KW" tab previews real local places with a link to their websites; these are previews, not partners.
 - **Wallet:** eco score, points, redeemed codes and recent trips.
 - **Community:** clubs with a weekly goal, and a help chat.
-- **Muta:** type ("Let's type") or talk ("Let's talk"). Muta answers about points, rewards and clubs, finds places, plans trips onto the map, starts and finishes trips, opens screens and redeems demo rewards. The voice call stays connected while you move around the app.
+- **Muta:** type ("Let's type") or talk ("Let's talk"). Muta answers about points, rewards and clubs, finds places, plans trips onto the map, starts and finishes trips, opens screens, redeems demo rewards and reads out route safety ratings. By voice, finishing a trip or redeeming a reward asks a question first and only runs after you say yes. The voice call stays connected while you move around the app.
+- **Route safety:** Gemini rated 4 demo walking routes from Mapillary street-level photos (taken 2016 to 2024). Ask Muta about one and the rating shows on the map with its notes and attribution. Other routes get an honest "no data" answer. It's an estimate from old photos, not a safety guarantee.
 - **Installable PWA**, mobile first. GPS records only while the app is open in the foreground.
 
 ## Tech stack
 
 - **Backend:** Node 22+, TypeScript, Hono, SQLite (better-sqlite3), `@google/genai` (Gemini), ElevenLabs REST (speech and agent sessions), `gtfs-realtime-bindings`.
 - **Frontend:** React 18, Vite 6, vite-plugin-pwa, Leaflet with OpenStreetMap tiles, walk and bike route lines from Valhalla, `@elevenlabs/client`.
-- **Data:** GRT open data, Nominatim (OpenStreetMap) place search.
+- **Data:** GRT open data, Nominatim (OpenStreetMap) place search, Mapillary street photos (used only by the script that generated the route safety ratings).
 
 ## Architecture
 
@@ -77,7 +79,9 @@ Phone (PWA, React)
   │                                     ├─▶ GRT GTFS + GTFS-realtime (buses, ION)
   │                                     ├─▶ Nominatim (place search)
   │                                     ├─▶ Gemini (trip planner, chat, Muta text)
-  │                                     └─▶ ElevenLabs (signed session links, speech)
+  │                                     ├─▶ ElevenLabs (signed session links, speech)
+  │                                     └─▶ route safety ratings file (made once, offline,
+  │                                          by Gemini vision over Mapillary photos)
   │
   └─ WebSocket (signed URL) ─────▶ ElevenLabs agent "Muta"
                                         └─ tool calls ─▶ browser tools in the app ─▶ /api/*
@@ -94,12 +98,12 @@ cp backend/.env.example backend/.env   # then fill in GEMINI_API_KEY and ELEVENL
 
 Then follow [`docs/local-phone-run.md`](docs/local-phone-run.md): start the backend and frontend, check them, and open the app on a phone through an HTTPS tunnel. Phones need HTTPS for GPS and the microphone.
 
-**Checks:** `npm test` runs the mocked test suites (no real provider calls). On the last run: frontend 31/31, backend rewards 41/41, chat 62/62, planner 167/167, and scoring and companion all passed.
+**Checks:** `npm test` runs the mocked test suites (no real provider calls). Last run, 2026-11-08 (about 00:30 Toronto time): frontend 50/50, backend rewards 41/41, chat 62/62, route safety 15/15, and scoring, companion and trip evidence passed. Planner was 166/167: the one failure was the "daily cap flagged" check. Because the backend suites are chained, that failure stops `npm test` before the companion, evidence and safety suites, so those were run on their own.
 
 ## Deployment
 
 - **Backend:** Render, https://commutr-backend.onrender.com (free tier: the first request after idle can be slow).
-- **Frontend:** not deployed as of main; Vercel deploy in progress.
+- **Frontend:** Vercel setup is on main ([`frontend/vercel.json`](frontend/vercel.json) forwards `/api` to Render; see [`frontend/DEPLOYMENT.md`](frontend/DEPLOYMENT.md)). No public frontend URL yet.
 
 ## Docs
 
@@ -120,5 +124,6 @@ Then follow [`docs/local-phone-run.md`](docs/local-phone-run.md): start the back
 - Transit data: Grand River Transit, Region of Waterloo Open Data
 - Map tiles and place search: © OpenStreetMap contributors (Nominatim)
 - Route lines: Valhalla (public server at valhalla1.openstreetmap.de)
+- Street imagery for route safety: Mapillary contributors, CC BY-SA 4.0 (photo creators are listed with each rating)
 - Voice: ElevenLabs. AI: Google Gemini
 - Merchants, rewards, users and clubs are demo data
