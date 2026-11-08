@@ -1,10 +1,132 @@
+<div align="center">
+
+<img src="docs/screenshots/muta.png" alt="Muta, the Commutr mascot" width="120">
+
 # Commutr
 
-**A little greener, every journey.** Commutr is a mobile-first web app for Kitchener-Waterloo that rewards people for replacing car trips with walking, cycling, scooting or transit. You record a trip, the backend verifies it, and you earn points to spend on rewards at local businesses. Streaks, clubs and an eco score make it a habit. Muta, the app's mascot, can be typed to or talked to and can drive the app for you.
+**A little greener, every journey.**
 
-All merchants and rewards are **demo data**. Commutr has no real sponsor, partner or government affiliation.
+Earn points for walking, cycling and taking transit around Kitchener-Waterloo,<br>
+and talk to Muta, a voice mascot that moves the app for you.
 
-Hackathon tracks: [Best use of the Gemini API](docs/track-gemini.md) · [Best use of ElevenLabs](docs/track-elevenlabs.md)
+### [▶ Try it live: commutr-psi.vercel.app](https://commutr-psi.vercel.app)
+
+<sub>Mobile first: best on a phone. The first load after a quiet spell can take a few seconds while the free backend wakes up.</sub>
+
+<br>
+
+[![Live demo](https://img.shields.io/badge/live-commutr--psi.vercel.app-4c9a2a?style=flat-square)](https://commutr-psi.vercel.app)
+![Gemini API](https://img.shields.io/badge/Gemini%20API-function%20calling%20%2B%20vision-1a73e8?style=flat-square)
+![ElevenLabs](https://img.shields.io/badge/ElevenLabs-voice%20agent-111111?style=flat-square)
+![React + Vite](https://img.shields.io/badge/React%2018-Vite%206-61dafb?style=flat-square)
+![Node + Hono](https://img.shields.io/badge/Node%2022-Hono-e36002?style=flat-square)
+![SQLite](https://img.shields.io/badge/SQLite-better--sqlite3-003b57?style=flat-square)
+![PWA](https://img.shields.io/badge/PWA-installable-5a0fc8?style=flat-square)
+
+<br>
+
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="docs/screenshots/home.jpg" alt="Home screen with eco score, points and tonight's demo deals" width="190"></td>
+    <td align="center" width="25%"><img src="docs/screenshots/map-walk.jpg" alt="Map with a walking route to Kitchener GO station and estimated points" width="190"></td>
+    <td align="center" width="25%"><img src="docs/screenshots/muta-chat.jpg" alt="Muta answering what the user can get with their points" width="190"></td>
+    <td align="center" width="25%"><img src="docs/screenshots/shop.jpg" alt="Shop with eco-gated demo rewards" width="190"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Home</b><br>Eco score, points and deals</sub></td>
+    <td align="center"><sub><b>Map</b><br>Walk route with minutes, km and points</sub></td>
+    <td align="center"><sub><b>Muta</b><br>Ask about your points and rewards</sub></td>
+    <td align="center"><sub><b>Shop</b><br>Rewards gated by eco score</sub></td>
+  </tr>
+</table>
+
+</div>
+
+> [!NOTE]
+> **All merchants, rewards, users and clubs are demo data.** Commutr has no real sponsor, partner or government affiliation.
+
+## What it is
+
+Commutr is a mobile-first web app (an installable PWA) for Kitchener-Waterloo that rewards people for replacing car trips with walking, cycling, scooting or transit. You pick a mode and record a trip, the backend verifies it from GPS, and you earn points to spend on eco-gated rewards at local businesses (demo merchants in this build). Streaks, clubs and an eco score make it a habit.
+
+**Muta**, the app's mascot, can be typed to or talked to. It answers questions about your account, finds real places, plans trips onto the map, starts and finishes trips and redeems rewards, all through the same code paths your taps use.
+
+Hackathon tracks: **[Best use of the Gemini API](docs/track-gemini.md)** · **[Best use of ElevenLabs](docs/track-elevenlabs.md)**
+
+## ✨ Built with Gemini
+
+Gemini decides, orders and explains. **Every number a user sees (minutes, km, points, next bus) is computed by our backend**, and answers are checked for numbers that aren't in the tool results. Full write-up: [`docs/track-gemini.md`](docs/track-gemini.md).
+
+- **Trip planner with function calling over live data.** Gemini calls four tools that read our real data: matching places, walk / bike / transit options, the next live GRT arrivals, and a points estimate from the real scoring formula. It then makes one final call with **structured output** (a response schema). If Gemini fails, is slow (8 s budget; 6 s for Muta) or the quota has no room, a computed answer comes back with `source: "computed"`, so the app works the same either way.
+- **Muta's text chat turns words into checked app actions.** Gemini reads your status, rewards and clubs through tools, and can *request* actions (`navigate`, `plan_trip`, `start_trip`, `finish_trip`, `redeem_reward`). The backend checks them and the browser runs them through the app's own navigation, map and GPS tracker.
+- **Distance-aware place discovery.** "A walk of about 2 km, where can I go?" finds real places through OpenStreetMap search and sorts them by how close the walk is to 2 km, using the same walk estimate as the planner. Gemini gets names and rounded distances, never coordinates.
+- **Route safety from Gemini vision.** Gemini rated 4 demo walking routes once, from Mapillary street-level photos (taken 2016 to 2024): lighting, sidewalks, traffic and crossings. It's an estimate from old photos, not a safety guarantee, and it's shown with the CC BY-SA 4.0 attribution.
+
+| Use | Model |
+|---|---|
+| Trip planner, Community help chat, Muta text chat | `gemini-3.5-flash-lite` |
+| Route safety ratings (offline script, image input) | `gemini-3.5-flash-lite` |
+
+The backend also has Gemini voice transcription and fallback speech, which the current app doesn't use (see the write-up).
+
+## 🎙️ Built with ElevenLabs
+
+Muta is an **ElevenLabs agent you can talk to in a live, two-way voice call**, and its tools run inside the app, so a spoken request moves the app. Full write-up: [`docs/track-elevenlabs.md`](docs/track-elevenlabs.md).
+
+- **Live voice with `@elevenlabs/client`.** "Let's talk" asks for the microphone, then starts a WebSocket session. The call stays connected while you change tabs or minimise the panel.
+- **A private agent.** The browser never sees the ElevenLabs key or the agent ID: the backend hands it a short-lived signed link from `POST /api/companion/session`.
+- **10 browser tools that move the app:** status, rewards, clubs, place discovery, navigation, trip planning (draws the route on the map), start and finish a trip, redeem a reward, and route safety (shows the rating card on the map).
+- **A spoken yes before anything that spends points or ends a trip.** Finishing a trip or redeeming a reward first returns a question with the real reward and price; it runs only after a new "yes" from you. A flag from the model can't skip it.
+- **The mascot follows the call.** Muta's animation switches between idle, listening, thinking and speaking, and the agent is told which screen you're on.
+
+## 🗺️ Tour of the app
+
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="docs/screenshots/community.jpg" alt="Community tab with a club's weekly step goal" width="170"></td>
+    <td align="center" width="25%"><img src="docs/screenshots/map-transit.jpg" alt="Map with a transit option marked as illustrative demo timing" width="170"></td>
+    <td align="center" width="25%"><img src="docs/screenshots/redeem.jpg" alt="Redemption dialog with a demo code" width="170"></td>
+    <td align="center" width="25%"><img src="docs/screenshots/walk-result.png" alt="Trip finished card showing +6 points for 0.55 km, from a demo walk with a simulated GPS track" width="170"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Community</b><br>A club's shared weekly step goal</sub></td>
+    <td align="center"><sub><b>Transit option</b><br>Suggested destination, illustrative demo timing</sub></td>
+    <td align="center"><sub><b>Redeem</b><br>A demo reward and its code</sub></td>
+    <td align="center"><sub><b>Demo walk</b><br>The GPS track was simulated to show the real scoring result. Not a real outdoor walk.</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/map-bike.jpg" alt="Map with a bike route and estimated points" width="170"></td>
+    <td align="center"><img src="docs/screenshots/search.jpg" alt="Place search with suggested Kitchener-Waterloo destinations" width="170"></td>
+    <td align="center"><img src="docs/screenshots/shop-offer.jpg" alt="Shop with a demo reward expanded" width="170"></td>
+    <td align="center"><img src="docs/screenshots/muta-open.jpg" alt="Muta's panel open, ready to type" width="170"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Bike</b><br>Same trip, by bike</sub></td>
+    <td align="center"><sub><b>Search</b><br>Find a place in KW</sub></td>
+    <td align="center"><sub><b>Offer</b><br>A demo reward up close</sub></td>
+    <td align="center"><sub><b>Muta</b><br>Type or talk</sub></td>
+  </tr>
+</table>
+
+## Features
+
+- **Map and trips:** search KW places, compare walk, bike and transit with minutes, km and estimated points, then start, record and finish a trip. GPS records while the app is open in the foreground.
+- **Live GRT transit:** real Grand River Transit bus and ION positions and next arrivals (details below).
+- **Shop:** demo rewards gated by eco score as well as points, with a redemption code on redeem.
+- **Wallet:** eco score, points, redeemed codes and recent trips.
+- **Community:** clubs with a shared weekly step goal, and a help chat.
+- **Muta:** type ("Let's type") or talk ("Let's talk"), as described above.
+- **Route safety:** ask Muta about one of the 4 rated demo routes and the rating card shows on the map.
+- **Photo trip (no GPS):** a browser-only rehearsal mode. The photo isn't uploaded, and its points stay in that browser: they don't change server balances or what you can redeem.
+- **Installable PWA**, mobile first.
+
+## 🤝 Why it works for everyone
+
+> **This section describes the design of the system, not built features or measured results.**
+
+- **People:** verified green trips earn points for eco-gated rewards (demo rewards in this build), with streaks and clubs to keep the habit going.
+- **Businesses:** rewards give people a reason to walk or ride to a local place. The merchants in this build are fictional demo data, not partners.
+- **Government and transit agencies:** the aim is fewer car trips, and the app uses real GRT open data for live buses and transit checks. There is no government partnership, no government dashboard and no measured impact.
 
 ## How scoring works
 
@@ -20,7 +142,7 @@ points = verified_km × mode_rate × confidence × trust_multiplier   (rounded, 
 | Transit | 12 |
 | Car | 0 (allowed, lowers the eco score) |
 
-You pick the mode before the trip. While the app is open, it uploads GPS points to the backend. The backend scores the trip when you finish. All values are in [`backend/src/scoring/config.ts`](backend/src/scoring/config.ts).
+You pick the mode before the trip. While the app is open it uploads GPS points, and the backend scores the trip when you finish. All values are in [`backend/src/scoring/config.ts`](backend/src/scoring/config.ts).
 
 - **Verified km:** points with accuracy worse than 50 m are dropped, movements under 10 m count as GPS jitter, and impossible jumps or stretches faster than the mode allows don't count.
 - **Sparse GPS is fine.** Browsers pause GPS in the background, so a gap alone never lowers confidence.
@@ -43,67 +165,58 @@ Confidence starts at 1.0 and each failed check subtracts from it (floor 0):
 - **Trust multiplier** (per user, 0.4 to 1.0): a trip with confidence below **0.3** earns 0 points and lowers trust by 0.15. Each clean trip (confidence ≥ 0.8, ≥ 0.5 km) adds 0.02 back.
 - **Eco score** (0 to 100): car trips cost 0.5 per km (min 1, max 10 per trip). Green trips of at least 1 km add 1, up to 3 a day. A low-confidence trip doesn't count as a car trip.
 - **Rewards are gated by eco score as well as points.** For example, the demo Maple Loop Coffee $5, $10 and $25 cards need eco 80, 85 and 95, and stay locked below that even with enough points.
-- **Streaks:** one green trip of at least 0.5 km per day.
-- **Clubs:** weekly shared step goals, from walk km × 1,300.
+- **Streaks:** one green trip of at least 0.5 km per day. **Clubs:** weekly shared step goals, from walk km × 1,300.
 
 ## Live GRT transit data
 
-The backend reads the real Grand River Transit feeds from the Region of Waterloo open data API:
-- GTFS-realtime vehicle positions and trip updates for buses (feed 1) and ION light rail (feed 2);
-- the static GTFS schedule and stops.
-
-It parses the protobuf and serves plain JSON. Live buses show on the map, the trip planner uses the next live departure, and transit trips are checked against real stop locations. If a feed fails, it falls back to clearly marked fake bus data. On the Map screen, the transit option for the 6 suggested destinations is labelled demo data ("Demo transit · illustrative timing"), not a live timetable.
-
-## Features
-
-- **Map:** search KW places, see walk, bike and transit options with minutes, km and estimated points, and start, record and finish a trip. Live buses show in transit mode. You can attach a trip photo (JPG, PNG or WebP, up to 5 MB). It's stored as supporting evidence only: no AI looks at it, and normal trips are still scored from GPS.
-- **Demo trips (no GPS):** a labelled rehearsal mode for the 6 suggested destinations. The server fixes the distance, a photo is required to finish, and the trip earns points but never changes the eco score, trust, streaks or clubs. Off by default on a production server.
-- **Shop:** eco-gated demo rewards, with a redemption code on redeem. An "Around KW" tab previews real local places with a link to their websites; these are previews, not partners.
-- **Wallet:** eco score, points, redeemed codes and recent trips.
-- **Community:** clubs with a weekly goal, and a help chat.
-- **Muta:** type ("Let's type") or talk ("Let's talk"). Muta answers about points, rewards and clubs, finds places, plans trips onto the map, starts and finishes trips, opens screens, redeems demo rewards and reads out route safety ratings. By voice, finishing a trip or redeeming a reward asks a question first and only runs after you say yes. The voice call stays connected while you move around the app.
-- **Route safety:** Gemini rated 4 demo walking routes from Mapillary street-level photos (taken 2016 to 2024). Ask Muta about one and the rating shows on the map with its notes and attribution. Other routes get an honest "no data" answer. It's an estimate from old photos, not a safety guarantee.
-- **Installable PWA**, mobile first. GPS records only while the app is open in the foreground.
-
-## Tech stack
-
-- **Backend:** Node 22+, TypeScript, Hono, SQLite (better-sqlite3), `@google/genai` (Gemini), ElevenLabs REST (speech and agent sessions), `gtfs-realtime-bindings`.
-- **Frontend:** React 18, Vite 6, vite-plugin-pwa, Leaflet with OpenStreetMap tiles, walk and bike route lines from Valhalla, `@elevenlabs/client`.
-- **Data:** GRT open data, Nominatim (OpenStreetMap) place search, Mapillary street photos (used only by the script that generated the route safety ratings).
+The backend reads the real Grand River Transit feeds from the Region of Waterloo open data API: GTFS-realtime vehicle positions and trip updates for buses (feed 1) and ION light rail (feed 2), plus the static GTFS schedule and stops. It parses the protobuf and serves plain JSON. Live buses show on the map, the trip planner uses the next live departure, and transit trips are checked against real stop locations. If a feed fails, it falls back to clearly marked fake bus data. On the Map screen, the transit option for the 6 suggested destinations is labelled demo data ("Demo transit · illustrative timing"), not a live timetable.
 
 ## Architecture
 
-```
-Phone (PWA, React)
-  ├─ /api/* (JSON) ──────────────▶ Hono backend ──▶ SQLite (users, trips, rewards, clubs)
-  │                                     ├─▶ GRT GTFS + GTFS-realtime (buses, ION)
-  │                                     ├─▶ Nominatim (place search)
-  │                                     ├─▶ Gemini (trip planner, chat, Muta text)
-  │                                     ├─▶ ElevenLabs (signed session links, speech)
-  │                                     └─▶ route safety ratings file (made once, offline,
-  │                                          by Gemini vision over Mapillary photos)
-  │
-  └─ WebSocket (signed URL) ─────▶ ElevenLabs agent "Muta"
-                                        └─ tool calls ─▶ browser tools in the app ─▶ /api/*
+```mermaid
+flowchart LR
+  phone["📱 Phone<br/>PWA · React"]
+  subgraph backend["Hono backend (Render)"]
+    api["/api/* JSON"]
+    db[("SQLite<br/>users · trips · rewards · clubs")]
+  end
+  grt["GRT GTFS +<br/>GTFS-realtime"]
+  osm["Nominatim<br/>place search"]
+  gemini["Gemini<br/>planner · chat · Muta text"]
+  safety["Route safety ratings file<br/>(made once by Gemini vision<br/>over Mapillary photos)"]
+  el["ElevenLabs<br/>signed session links · speech"]
+  agent["ElevenLabs agent<br/>Muta"]
+
+  phone -- "/api/* (via Vercel)" --> api
+  api --> db
+  api --> grt
+  api --> osm
+  api --> gemini
+  api --> safety
+  api --> el
+  phone -- "WebSocket (signed URL)" --> agent
+  agent -- "tool calls run in the browser" --> phone
 ```
 
-The browser never holds a provider key. The ElevenLabs agent is private: the backend hands the browser a short-lived signed link from `POST /api/companion/session`.
+The browser never holds a provider key. The ElevenLabs agent is private: the backend hands the browser a short-lived signed link.
 
-## Run it
+**Stack:** Node 22+, TypeScript, Hono, SQLite (better-sqlite3), `@google/genai`, `gtfs-realtime-bindings` · React 18, Vite 6, vite-plugin-pwa, Leaflet with OpenStreetMap tiles, walk and bike route lines from Valhalla, `@elevenlabs/client`.
+
+## Run it locally
 
 ```sh
 npm run setup                          # installs backend and frontend packages
 cp backend/.env.example backend/.env   # then fill in GEMINI_API_KEY and ELEVENLABS_API_KEY
 ```
 
-Then follow [`docs/local-phone-run.md`](docs/local-phone-run.md): start the backend and frontend, check them, and open the app on a phone through an HTTPS tunnel. Phones need HTTPS for GPS and the microphone.
+Then follow [`docs/local-phone-run.md`](docs/local-phone-run.md): start the backend and frontend, check them, and open the app on a phone through an HTTPS tunnel (phones need HTTPS for GPS and the microphone).
 
-**Checks:** `npm test` runs the mocked test suites (no real provider calls). Last run, 2026-11-08 (about 00:30 Toronto time): frontend 50/50, backend rewards 41/41, chat 62/62, route safety 15/15, and scoring, companion and trip evidence passed. Planner was 166/167: the one failure was the "daily cap flagged" check. Because the backend suites are chained, that failure stops `npm test` before the companion, evidence and safety suites, so those were run on their own.
+`npm test` runs the mocked test suites, with no real provider calls.
 
 ## Deployment
 
+- **Frontend:** Vercel, https://commutr-psi.vercel.app. [`frontend/vercel.json`](frontend/vercel.json) forwards `/api` to the backend; see [`frontend/DEPLOYMENT.md`](frontend/DEPLOYMENT.md).
 - **Backend:** Render, https://commutr-backend.onrender.com (free tier: the first request after idle can be slow).
-- **Frontend:** Vercel setup is on main ([`frontend/vercel.json`](frontend/vercel.json) forwards `/api` to Render; see [`frontend/DEPLOYMENT.md`](frontend/DEPLOYMENT.md)). No public frontend URL yet.
 
 ## Docs
 
