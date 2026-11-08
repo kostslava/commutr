@@ -29,3 +29,7 @@ Frontend tests cover fresh chat context, no voice transcript, call persistence, 
 Real-provider checks exercised Gemini recommendations and ElevenLabs speech recognition, audio output, navigation and place-discovery client tools. Human microphone permission is device-specific; an unanswered prompt times out with a text fallback.
 
 Provider documentation: [ElevenLabs client tools](https://elevenlabs.io/docs/eleven-agents/customization/tools/client-tools), [signed sessions](https://elevenlabs.io/docs/eleven-agents/customization/authentication).
+
+## App updates
+
+Online navigations use network-first HTML, with a cached page available offline. Only the outer page registers the PWA update handler, so updating it replaces the phone preview as well. Service-worker activation and client claiming are explicit; the app refreshes to a new version when idle, deferring while a Muta call or foreground GPS recording is active. This prevents obsolete confirmation handlers from remaining in a stale phone iframe.
