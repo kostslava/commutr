@@ -7,6 +7,7 @@ import { currentUser, type CurrentUserEnv } from './currentUser.js';
 import { openDb } from './db.js';
 import { agentRoutes } from './routes/agent.js';
 import { chatAudioRoutes, chatRoutes } from './routes/chat.js';
+import { companionRoutes } from './routes/companion.js';
 import { clubRoutes } from './routes/clubs.js';
 import { locationRoutes } from './routes/locations.js';
 import { meRoutes } from './routes/me.js';
@@ -57,6 +58,7 @@ api.route('/', rewardRoutes(db));
 api.route('/', clubRoutes(db));
 api.route('/', locationRoutes(db));
 api.route('/', chatRoutes(db));
+api.route('/', companionRoutes(db));
 api.route('/', planRoutes(db));
 app.route('/api', api);
 

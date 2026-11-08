@@ -17,6 +17,7 @@ export type CachedPlan = {
   recommendation: PlanMode;
   order: PlanMode[];
   summary: string;
+  optionNumbers: string;
   eco_notes: [PlanMode, string][];
 };
 

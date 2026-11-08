@@ -95,6 +95,7 @@ export const FINAL_SCHEMA = {
 type GeminiAnswer = { place_id: string; recommendation: PlanMode; order: PlanMode[]; eco_notes: Map<PlanMode, string>; summary: string };
 
 /** Every number Gemini was shown (tool results + the request). */
+const optionNumbers = (options: PlanOption[]) => JSON.stringify(options.map(o => [o.mode, o.minutes, o.km, o.points_estimate, o.next_bus?.minutes ?? null]));
 const numbersIn = (text: string) => new Set((text.match(/\d+(?:\.\d+)?/g) ?? []).map(Number));
 
 async function geminiPlan(ctx: ToolCtx, request: string, allowed: Set<number>, signal: AbortSignal): Promise<GeminiAnswer> {
@@ -236,7 +237,7 @@ export async function plan(db: DB, userId: number, body: Record<string, unknown>
     const options = optionsFor(ctx, place);
     if (options.some((o) => o.mode === hit.recommendation)) {
       const allowed = numbersIn(JSON.stringify(options.map(optionJson)) + ' ' + place.safe_name + ' ' + (typeof dest === 'string' ? dest : dest.name));
-      const d: Decision = { recommendation: hit.recommendation, order: hit.order, summary: hit.summary, eco_notes: new Map(hit.eco_notes) };
+      const d: Decision = { recommendation: hit.recommendation, order: hit.order, summary: hit.optionNumbers === optionNumbers(options) ? hit.summary : computedSummary(origin.name, place.display_name, options, hit.recommendation), eco_notes: new Map(hit.eco_notes) };
       return decisionResponse(place, options, d, allowed, { origin, attribution: attributionFor(hit.usedSearch), cached: true });
     }
     // The recommended mode is no longer offered (e.g. no bus now): plan afresh.
@@ -303,6 +304,7 @@ export async function plan(db: DB, userId: number, body: Record<string, unknown>
       recommendation: answer.recommendation,
       order: answer.order,
       summary: answer.summary,
+      optionNumbers: optionNumbers(options),
       eco_notes: [...answer.eco_notes],
     });
     log.info(`plan: source=gemini in ${Date.now() - started} ms`);

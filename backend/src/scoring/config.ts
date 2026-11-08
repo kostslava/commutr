@@ -11,8 +11,8 @@ export const MODES: readonly Mode[] = ['walk', 'bike', 'scooter', 'transit', 'ca
 
 // --- Points ------------------------------------------------------------------
 
-/** Points per verified km. (Tripled alternative: walk 30, bike 18, scooter 12, transit 9, cap 600.) */
-export const MODE_RATES: Record<Mode, number> = { walk: 10, bike: 6, scooter: 4, transit: 3, car: 0 };
+/** Points per verified km. Transit includes the paid-fare incentive. */
+export const MODE_RATES: Record<Mode, number> = { walk: 10, bike: 6, scooter: 4, transit: 12, car: 0 };
 
 /** Max points per user per Toronto calendar day (by the day the trip ended). */
 export const DAILY_POINTS_CAP = 200;
