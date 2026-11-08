@@ -28,5 +28,5 @@ it('lets a selected photo finish the trip without requiring another upload click
  function PhotoTrip(){const tracker=useTripTracker(vi.fn());return tracker.trip?<><TripEvidence tracker={tracker}/><button disabled={tracker.busy} onClick={()=>tracker.finish()}>Finish trip</button>{tracker.error&&<p role="alert">{tracker.error}</p>}</>:<p>Ready</p>}
  render(<PhotoTrip/>);const input=await screen.findByLabelText('Trip evidence photo');fireEvent.change(input,{target:{files:[new File(['photo'],'ticket.png',{type:'image/png'})]}});
  expect(screen.getByRole('button',{name:'Finish trip'}).disabled).toBe(true);expect(screen.getByRole('progressbar',{name:'Uploading photo'})).toBeTruthy();
- await screen.findByRole('button',{name:'Photo uploaded · replace'},{timeout:3000});fireEvent.click(screen.getByRole('button',{name:'Finish trip'}));await screen.findByText('Ready');expect(screen.queryByRole('alert')).toBeNull();expect(api).toHaveBeenCalledOnce();
+ await screen.findByRole('button',{name:'Photo uploaded · replace'},{timeout:3000});fireEvent.click(screen.getByRole('button',{name:'Finish trip'}));await screen.findByText('Ready',{}, {timeout:4000});expect(screen.queryByRole('alert')).toBeNull();expect(api).toHaveBeenCalledOnce();
 });

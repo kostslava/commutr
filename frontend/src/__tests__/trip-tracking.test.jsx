@@ -91,3 +91,13 @@ it('awards photo points for an existing GPS trip without finishing it on the ser
  let finished;await act(async()=>{finished=await first.result.current.finish()});expect(finished.trip.points_awarded).toBe(7);expect(first.result.current.trip).toBeNull();expect(api).not.toHaveBeenCalled();first.unmount();
  const next=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});expect(next.result.current.trip).toBeNull();
 });
+
+it('shows review before crediting points and ignores duplicate finish requests',async()=>{
+ api.mockResolvedValue({trips:[{id:81,mode:'walk',demo:true,status:'active',distance_km:1,evidence_status:'submitted'}]});
+ const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});vi.useFakeTimers();
+ try{
+  let finished;act(()=>{finished=result.current.finish()});expect(result.current.reviewing).toBe(true);expect(result.current.busy).toBe(true);expect(localStorage.getItem('commutr:photo-trips:v1:user:1')).toBeNull();
+  await act(async()=>{expect(await result.current.finish()).toBeUndefined();await vi.advanceTimersByTimeAsync(2199)});expect(result.current.trip).not.toBeNull();expect(localStorage.getItem('commutr:photo-trips:v1:user:1')).toBeNull();
+  let awarded;await act(async()=>{await vi.advanceTimersByTimeAsync(1);awarded=await finished});expect(awarded.trip.points_awarded).toBe(10);expect(result.current.reviewing).toBe(false);expect(result.current.busy).toBe(false);expect(JSON.parse(localStorage.getItem('commutr:photo-trips:v1:user:1'))).toHaveLength(1);
+ }finally{vi.useRealTimers()}
+});
