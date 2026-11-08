@@ -10,9 +10,9 @@ import {companionReply,type HistoryItem} from '../chat/companion.js';
 import {takeUserRequest} from '../chat/usage.js';
 import {isObj,jsonBody,bad} from './http.js';
 import type {Context} from 'hono';
-import {COMPANION_PLAN_BUDGET_MS,FALLBACK_RESERVE_MS,GEOCODE_TIMEOUT_MS} from '../planner/config.js';
+import {COMPANION_PLAN_BUDGET_MS,FALLBACK_RESERVE_MS,GEOCODE_TIMEOUT_MS,inKwArea} from '../planner/config.js';
 import {plan,isPlanError} from '../planner/plan.js';
-import {parseDestination,resolveDestination,resolveOrigin,PlaceBook} from '../planner/places.js';
+import {parseDestination,resolveDestination,resolveOrigin,PlaceBook,validLatLng} from '../planner/places.js';
 
 export function agentId(){
  if(process.env.ELEVENLABS_AGENT_ID?.trim())return process.env.ELEVENLABS_AGENT_ID.trim();
@@ -42,7 +42,10 @@ export async function companionPlan(db:DB,userId:number,body:Record<string,unkno
 export function companionRoutes(db:DB){
  const r=new Hono<CurrentUserEnv>();
  r.get('/companion/account',c=>c.json({status:runTool(db,c.get('userId'),'get_my_status'),clubs:runTool(db,c.get('userId'),'get_clubs'),rewards:listRewards(db,c.get('userId')).map(r=>({reward_id:r.id,title:r.title,merchant:r.merchant.name,points_cost:r.points_cost,min_eco_score:r.min_eco_score,affordable:r.affordable,locked:r.locked,redeemed_today:r.redeemed_today,points_needed:r.points_needed,eco_needed:r.eco_needed}))}));
- r.post('/companion/discover',async c=>{const body=await jsonBody(c);if(!isObj(body)||typeof body.query!=='string'||!body.query.trim()||body.query.length>160)return bad(c,'query must be 1–160 characters');const limit=takeUserRequest('discover',c.get('userId'));if(!limit.ok)return rateLimited(c,limit.retryAfterSec,'Give place search a moment, then try again.');return c.json(await discoverPlaces(body.query));});
+ r.post('/companion/discover',async c=>{const body=await jsonBody(c);if(!isObj(body)||typeof body.query!=='string'||!body.query.trim()||body.query.length>160)return bad(c,'query must be 1–160 characters');const limit=takeUserRequest('discover',c.get('userId'));if(!limit.ok)return rateLimited(c,limit.retryAfterSec,'Give place search a moment, then try again.');// Optional start for distances: { origin: { lat, lng } } inside KW; otherwise the saved home.
+  let origin:{at:[number,number];kind:'given'}|undefined;
+  if(body.origin!==undefined){const o=body.origin;if(!isObj(o)||!validLatLng(o.lat,o.lng)||!inKwArea(o.lat as number,o.lng as number))return bad(c,'origin must be { lat, lng } inside Kitchener-Waterloo');origin={at:[o.lat as number,o.lng as number],kind:'given'}}
+  return c.json(await discoverPlaces(body.query,{db,userId:c.get('userId'),...(origin?{origin}:{})}));});
  r.post('/companion/chat',async c=>{
   const body=await jsonBody(c);if(!isObj(body)||typeof body.message!=='string'||!body.message.trim()||body.message.length>2000)return bad(c,'message must be 1–2000 characters');
   const limit=takeUserRequest('text',c.get('userId'));if(!limit.ok)return rateLimited(c,limit.retryAfterSec,'A few too many messages. Try again shortly.');

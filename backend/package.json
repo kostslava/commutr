@@ -14,7 +14,7 @@
     "seed": "tsx src/seed.ts",
     "test:scoring": "tsx scripts/test-scoring.ts",
     "test:rewards": "tsx scripts/test-rewards-clubs.ts",
-    "test": "npm run test:scoring && npm run test:rewards && npm run test:chat && npm run test:planner && npm run test:companion && npm run test:evidence && npm run test:safety",
+    "test": "npm run test:scoring && npm run test:rewards && npm run test:chat && npm run test:planner && npm run test:companion && npm run test:evidence && npm run test:safety && npm run test:discover",
     "chat:warm": "tsx scripts/chat-warm.ts",
     "test:chat": "tsx scripts/test-chat.ts",
     "test:planner": "tsx scripts/test-planner.ts",
@@ -27,7 +27,8 @@
     "test:companion": "tsx scripts/test-companion.ts",
     "test:evidence": "tsx scripts/test-evidence.ts",
     "safety:generate": "tsx scripts/route-safety-generate.ts",
-    "test:safety": "tsx scripts/test-route-safety.ts"
+    "test:safety": "tsx scripts/test-route-safety.ts",
+    "test:discover": "tsx scripts/test-discover.ts"
   },
   "dependencies": {
     "@google/genai": "^3.0.0",

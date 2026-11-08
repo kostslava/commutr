@@ -481,6 +481,84 @@ async function mocked() {
     check(c, 'warm-up still finishes', bgResults.every((x) => x.ok), bgResults.map((x) => x.ok).join(','));
     check(c, 'Nominatim spacing kept (>= 1.1 s between requests)', log.length === 4 && gaps.every((g) => g >= NOMINATIM_MIN_INTERVAL_MS - 50), gaps.join(','));
 
+    // --- Discover with distances --------------------------------------------------------------
+    c = 'discover distances';
+    const discoverBody = (h: Harness, user: number, body: unknown) => call(h, 'POST', '/api/companion/discover', { user, body });
+    const homeLeak = (x: unknown) => ['43.4762', '80.5371'].some((v) => JSON.stringify(x).includes(v));
+    const nominatimSince = (n: number) => mock.nominatim.slice(n);
+    userWithHome(main, 7961, 'Discover 2 km');
+    let nd = mock.nominatim.length;
+    r = await discoverBody(main, 7961, { query: 'I want a walk of about 2 km, where can I go?' });
+    const two = r.json;
+    const twoReq = nominatimSince(nd);
+    const fields = ['name', 'town', 'lat', 'lng', 'distance_km', 'walk_km', 'walk_minutes', 'walkable'];
+    check(c, '2 km walk: 200, ok, old fields kept (name, town, summary, attribution)', r.status === 200 && two?.ok === true && typeof two.summary === 'string' && typeof two.attribution === 'string' && two.places?.every((p: any) => typeof p.name === 'string' && 'town' in p), `${r.status}`);
+    check(c, '2 km walk: every place has lat, lng, distance_km, walk_km, walk_minutes, walkable', two?.places?.length > 0 && two.places.every((p: any) => fields.every((f) => p[f] !== undefined && p[f] !== null)), JSON.stringify(two?.places?.[0]));
+    check(c, '2 km walk: origin "home", target_km 2', two?.origin === 'home' && two?.target_km === 2);
+    check(c, 'at most 5 places', two?.places?.length <= 5, String(two?.places?.length));
+    const gaps2 = (two?.places ?? []).map((p: any) => Math.abs(p.walk_km - 2));
+    check(c, '2 km walk: best first is within tolerance (1.5-2.5 km walk)', two?.places?.[0]?.walk_km >= 1.5 && two.places[0].walk_km <= 2.5, two?.places?.map((p: any) => `${p.name.split(',')[0]} ${p.walk_km}`).join(' | '));
+    check(c, '2 km walk: places sorted by closeness to 2 km', gaps2.every((g: number, i: number) => i === 0 || g >= gaps2[i - 1] - 0.051), gaps2.join(','));
+    check(c, '2 km walk: walk_km is the planner estimate (straight x 1.3)', two?.places?.every((p: any) => Math.abs(p.walk_km - p.distance_km * 1.3) <= 0.11 && p.walk_minutes === Math.round((p.walk_km / 5) * 60) || Math.abs(p.walk_minutes - (p.walk_km / 5) * 60) <= 2));
+    check(c, '2 km walk: summary names the best place with its distance, from your saved home', new RegExp(`^Closest to about 2 km on foot from your saved home: ${two?.places?.[0]?.name.split(',')[0]} \\(about \\d`).test(two?.summary ?? ''), two?.summary);
+    check(c, '2 km walk: no home coordinates in the reply', !homeLeak(two));
+    check(c, 'one Nominatim request: "park", limit 10, bounded box around the start inside the KW box', twoReq.length === 1 && twoReq[0]!.q === 'park' && twoReq[0]!.url.includes('limit=10') && twoReq[0]!.url.includes('bounded=1') && (() => { const [w, n, e, s2] = decodeURIComponent(twoReq[0]!.url.match(/viewbox=([^&]+)/)![1]!).split(',').map(Number); return w! >= -80.62 && e! <= -80.37 && n! <= 43.53 && s2! >= 43.37 && e! - w! < 0.25; })(), twoReq.map((n) => decodeURIComponent(n.url)).join(' '));
+    check(c, 'Nominatim gets no lat=/lon= and the box is rounded to 0.01 degrees', twoReq.every((n) => !/lat=|lon=/.test(n.url) && /viewbox=-?\d+\.\d{1,2}(%2C|,)/.test(n.url)));
+    nd = mock.nominatim.length;
+    r = await discoverBody(main, 7961, { query: 'I want a walk of about 2 km, where can I go?' });
+    check(c, 'same request again: from the 24 h cache, no new Nominatim request', r.json?.places?.[0]?.name === two?.places?.[0]?.name && mock.nominatim.length === nd);
+
+    // plan_trip with a returned name resolves to the same place, with no new search.
+    nd = mock.nominatim.length;
+    const chosen = two?.places?.[0];
+    r = await companionPlanCall(main, 7961, { destination: chosen?.name });
+    check(c, 'plan_trip with a returned name: same place, no Nominatim request', r.status === 200 && mock.nominatim.length === nd && Math.abs(r.json?.map_destination?.lat - chosen?.lat) < 1e-5 && Math.abs(r.json?.map_destination?.lng - chosen?.lng) < 1e-5, `${r.status} ${mock.nominatim.length - nd} requests`);
+    nd = mock.nominatim.length;
+    r = await companionPlanCall(main, 7961, { destination: chosen?.name.split(', ')[0] });
+    check(c, 'plan_trip with the short name ("Mid Mock Park"): same place, no Nominatim request', r.status === 200 && mock.nominatim.length === nd && Math.abs(r.json?.map_destination?.lat - chosen?.lat) < 1e-5, `${r.status} ${r.json?.map_destination?.name}`);
+    check(c, 'the planned walk matches the discover estimate', Math.abs((optionOf(r.json, 'walk')?.km ?? -1) - chosen?.walk_km) <= 0.11, `${optionOf(r.json, 'walk')?.km} vs ${chosen?.walk_km}`);
+
+    // No distance: nearest first.
+    userWithHome(main, 7962, 'Discover nearest');
+    r = await discoverBody(main, 7962, { query: 'park' });
+    const nearKm = (r.json?.places ?? []).map((p: any) => p.distance_km);
+    check(c, 'no distance: nearest first, target_km null', r.json?.ok === true && r.json?.target_km === null && nearKm.length > 1 && nearKm.every((k: number, i: number) => i === 0 || k >= nearKm[i - 1]), nearKm.join(','));
+    check(c, 'no distance: summary "Nearest first from your saved home"', /^Nearest first from your saved home: Near Mock Park \(about 0\.5 km walk/.test(r.json?.summary ?? ''), r.json?.summary);
+
+    // Nothing close: honest fallback with a real place.
+    userWithHome(main, 7963, 'Discover fallback');
+    r = await discoverBody(main, 7963, { query: 'a museum about 0.5 km walk' });
+    check(c, 'nothing near the target: says so and names the real closest place', r.json?.ok === true && r.json?.places?.[0]?.name.startsWith('Mock Museum') && /^Nothing came up close to 0\.5 km\. The closest match is Mock Museum \(about 1\.8 km walk/.test(r.json?.summary ?? ''), r.json?.summary);
+    check(c, 'fallback: only places the search returned', r.json?.places?.length === 1);
+
+    // Over the 6 km walking limit.
+    userWithHome(main, 7964, 'Discover 10 km');
+    r = await discoverBody(main, 7964, { query: 'a 10 km walk' });
+    check(c, 'a 10 km walk: says walks are planned up to 6 km', r.json?.ok === true && r.json?.target_km === 10 && /^The app plans walks up to 6 km, so for about 10 km a bike ride may suit better\./.test(r.json?.summary ?? ''), r.json?.summary);
+    check(c, 'walkable matches walk_km <= 6', (r.json?.places ?? []).every((p: any) => p.walkable === (p.walk_km <= 6)) && (r.json?.places ?? []).length > 0);
+
+    // By bike.
+    r = await discoverBody(main, 7964, { query: 'bike ride about 5 km' });
+    check(c, 'bike ride about 5 km: summary by bike', /^Closest to about 5 km by bike from your saved home: Big Mock Park \(about 5(\.0)? km by bike/.test(r.json?.summary ?? ''), r.json?.summary);
+
+    // Optional origin in the body.
+    userWithHome(main, 7965, 'Discover origin');
+    r = await discoverBody(main, 7965, { query: 'park', origin: { lat: 43.4762, lng: -80.5180 } });
+    check(c, 'origin in the body: origin "given", "from your current location"', r.json?.origin === 'given' && /from your current location/.test(r.json?.summary ?? ''), r.json?.summary);
+    check(c, 'origin in the body: nearest first by exact distance', (r.json?.places ?? []).every((p: any, i: number, a: any[]) => i === 0 || p.walk_km >= a[i - 1].walk_km), (r.json?.places ?? []).map((p: any) => p.walk_km).join(','));
+    check(c, 'summary minutes match walk_minutes', (r.json?.places ?? []).slice(0, 3).every((p: any) => r.json.summary.includes(`${p.name.split(', ')[0]} (about ${p.walk_km} km walk, ${p.walk_minutes} min)`)), r.json?.summary);
+    check(c, 'origin in the body: distances measured from it', r.json?.places?.[0]?.name !== undefined && r.json.places[0].distance_km !== two?.places?.find((p: any) => p.name === r.json.places[0].name)?.distance_km);
+    r = await discoverBody(main, 7965, { query: 'park', origin: { lat: 43.55, lng: -80.25 } });
+    check(c, 'origin outside KW: 400', r.status === 400 && r.json?.error?.code === 'validation_error', `${r.status}`);
+    r = await discoverBody(main, 7965, { query: 'park', origin: { lat: 'x' } });
+    check(c, 'bad origin: 400', r.status === 400);
+
+    // No saved home and no origin: works like before, without distances.
+    addUser(main.db, 7966, 'Discover no home');
+    r = await discoverBody(main, 7966, { query: 'Test Library' });
+    check(c, 'no home: 200 ok, distances null, origin null, the old summary', r.status === 200 && r.json?.ok === true && r.json?.origin === null && r.json?.places?.every((p: any) => p.distance_km === null && p.walk_km === null) && /^These are mapped places in KW/.test(r.json?.summary ?? ''), r.json?.summary);
+    check(c, 'name and town keep their format', r.json?.places?.[0]?.name === 'Test Library, Test Street, Kitchener' && r.json?.places?.[0]?.town === 'Kitchener', JSON.stringify(r.json?.places?.[0]));
+
     // --- Plan cache ---------------------------------------------------------------------------------------
     c = 'plan cache';
     userWithHome(main, 7720, 'Cache off');

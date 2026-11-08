@@ -9,6 +9,8 @@ Owned by the backend (Shahmeer). The frontend agent must not edit this file. If 
 > **Changed (2026-11-08):** added [`POST /api/companion/route-safety`](#post-apicompanionroute-safety--street-photo-safety-rating-for-a-demo-route--built): Gemini street-photo safety ratings for 4 precomputed demo routes (Mapillary imagery, CC BY-SA 4.0).
 >
 > **Changed (2026-11-08, later):** limits for a public demo, where every visitor is demo user 1. The plan limit is now **10 a minute, 300 a day**. [`POST /api/companion/discover`](#post-apicompaniondiscover--find-real-places-in-kw--built) has **its own** limit (10 a minute, 300 a day) and no longer uses planning slots. Every `/api/companion/*` 429 now has `retry_after_sec` and a `Retry-After` header. [`POST /api/companion/plan`](#post-apicompanionplan--plan-a-trip-and-preload-the-map--built) has a **6 s** budget from arrival (look-ups included), so its computed fallback comes sooner; Gemini still runs when there's time. The boot place warm-up now runs at low priority and never delays a user's search.
+>
+> **Changed (2026-11-08, discover distances):** [`POST /api/companion/discover`](#post-apicompaniondiscover--find-real-places-in-kw--built) keeps its fields and adds `origin`, `target_km` and, per place, `lat`, `lng`, `distance_km`, `walk_km`, `walk_minutes` and `walkable`. It reads a distance from the query ("about 2 km"), returns up to 5 places closest to it (or nearest first), says honestly when nothing is close, and accepts an optional `origin`. The search area is unchanged (Kitchener-Waterloo).
 
 ## Basics
 
@@ -906,27 +908,53 @@ Errors:
 
 Request:
 ```json
-{ "query": "cafes in Kitchener" }
+{ "query": "I want a walk of about 2 km, where can I go?" }
 ```
 
-`query`: required, 1–160 characters.
+- `query`: required, 1–160 characters. Free text, as the user or the agent said it.
+- `origin`: optional `{ "lat", "lng" }` inside Kitchener-Waterloo, where distances are measured from. Leave it out to use the user's saved home. Outside KW or malformed → `400 validation_error`.
 
 Response `200`:
 ```json
 {
   "ok": true,
-  "places": [{ "name": "Some Cafe", "town": "Kitchener" }],
-  "summary": "These are mapped places in KW. Suggest one or two that suit the request, then offer to plan a route. Opening hours, prices and events have not been checked.",
+  "origin": "home",
+  "target_km": 2,
+  "places": [
+    { "name": "Some Park, Some Street, Kitchener", "town": "Kitchener", "lat": 43.4612, "lng": -80.4821, "distance_km": 1.5, "walk_km": 2, "walk_minutes": 23, "walkable": true }
+  ],
+  "summary": "Closest to about 2 km on foot from your saved home: Some Park (about 2 km walk, 23 min). Suggest one or two, then offer to plan a route. Opening hours, prices and events have not been checked.",
   "attribution": "© OpenStreetMap contributors (Nominatim)"
 }
 ```
 
-- Searches Nominatim on the server (bounded to KW, 5 s).
-- `summary` is written for the model, not for display.
+| Field | Meaning |
+|---|---|
+| `ok`, `places[].name`, `places[].town`, `summary`, `attribution` | As before. `name` keeps its format ("Name, Street, Town"). |
+| `origin` | `"home"` (saved home), `"given"` (the request's `origin`) or `null` (no saved home and no `origin`: no distances). **Never coordinates**; the start's coordinates are never in the reply. |
+| `target_km` | The distance read from `query` (km along the route), or `null` |
+| `places[].lat`, `lng` | The place's own coordinates (5 decimals) |
+| `places[].distance_km` | Straight line from the start, 0.1 km (`null` without a start) |
+| `places[].walk_km` | `distance_km × 1.3`: the **same** estimate `plan_trip` uses for the walk option |
+| `places[].walk_minutes` | At 5 km/h |
+| `places[].walkable` | `walk_km ≤ 6` (the planner offers walks up to 6 km) |
+
+**How places are chosen:**
+- **One** Nominatim request (`limit=10`, `bounded=1`, inside the KW box, the same 1-per-second queue and 24 h cache). At most **5** places come back.
+- **A distance in the query** is read and removed from the search text: "about 2 km", "2k", "1.5 kilometres", "1,5 km", "two km", "half a mile", "500 m", "a 20 minute walk" (5 km/h, or 15 km/h for a bike ride), "under/within/up to 3 km" (a maximum). A query with nothing left but walking words ("a walk of about 2 km, where can I go?") searches **"park"**.
+- **With a distance and a start,** the search box is centred on the start (half-width 1.5 × the straight-line distance, at least 1.5 km, rounded outward to 0.01°, kept inside the KW box), so results land near the distance. Nominatim gets only the search text and that box, never `lat`/`lon`.
+- **Order:** with a distance, places within **0.5 km or 30%** of it (whichever is larger) come first, closest first (bike requests compare the bike estimate, `distance_km × 1.25`). Without a distance, nearest first. Without a start, Nominatim's order (as before).
+- **Nothing close:** the closest real places are still returned and the `summary` says so ("Nothing came up close to 0.5 km. The closest match is …"). No place is ever invented.
+- **Long distances:** a walk over 6 km keeps the target, and the `summary` says walks are planned up to 6 km and a bike may suit better. A request over 25 km is read as 25 km. Under 0.3 km is read as 0.3 km.
+- **Same place in `plan_trip`:** every returned place is remembered in the geocode cache for 24 h under its `name`, and under its short name ("Some Park") when that's two words or more and not already cached. Planning to that name then finds the same place, with no new search.
+
+- `summary` is written for the agent to read aloud: up to 3 places with their walking (or bike) distance and minutes from "your saved home" or "your current location".
+- **Typed Muta** (`POST /api/companion/chat`) uses the same search. Gemini gets only `name`, `town` and `walk_km` rounded to 0.5 km, with no coordinates, keeping the rule that Gemini never sees coordinates.
+- **Voice Muta:** the browser passes this JSON unchanged to the ElevenLabs agent, so its LLM sees the places' coordinates and distances (not the home's). The demo home is a public address.
 - **Known quirk:** if the place search is down, the answer is still **`200`**, with `{ "ok": false, "summary": "Place search is unavailable right now. …" }`. Check `ok`.
 - **Limit:** its own bucket, 10 searches a minute and 300 a day per user. It doesn't use planning slots. Nominatim is still asked at most once a second for the whole server.
 
-Errors: `400 validation_error` · `429 rate_limited` with `retry_after_sec` and a `Retry-After` header.
+Errors: `400 validation_error` (bad `query` or `origin`) · `429 rate_limited` with `retry_after_sec` and a `Retry-After` header.
 
 ### `POST /api/companion/route-safety` — street-photo safety rating for a demo route — **built**
 
