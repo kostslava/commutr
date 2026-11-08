@@ -1,6 +1,6 @@
 # Commutr: Best use of the Gemini API
 
-Commutr rewards people in Kitchener-Waterloo for walking, cycling and taking transit instead of driving. We use Gemini where a language model helps: choosing and explaining trip options, answering questions about the user's own account, and turning a typed request into actions in the app. **Every number a user sees (minutes, km, points, next bus) is computed by our backend.** Gemini decides, orders and explains; it never invents a figure.
+Commutr rewards people in Kitchener-Waterloo for walking, cycling and taking transit instead of driving. We use Gemini where a language model helps: choosing and explaining trip options, answering questions about the user's own account, turning a typed request into actions in the app, and rating how comfortable a walking route looks from street-level photos. **Every number a user sees (minutes, km, points, next bus) is computed by our backend.** Gemini decides, orders and explains; it never invents a figure.
 
 All calls go through the official `@google/genai` SDK on the backend (`backend/src/chat/gemini.ts`). The key lives only in the server's environment and is never sent to the browser or logged.
 
@@ -10,6 +10,7 @@ All calls go through the official `@google/genai` SDK on the backend (`backend/s
 |---|---|
 | Trip planner, chat, Muta text chat | `gemini-3.5-flash-lite` |
 | Voice message transcription | `gemini-3.5-flash-lite` |
+| Route safety ratings (offline script, image input) | `gemini-3.5-flash-lite` |
 | Fallback speech (text to speech) | `gemini-3.8-flash-lite-tts`, voice `Kore` |
 
 ## 1. Trip planner: function calling over live GRT data and our scoring rules
@@ -46,7 +47,22 @@ All calls go through the official `@google/genai` SDK on the backend (`backend/s
 - **"Where should I eat?"** builds suggestions on the server from the demo merchants and rewards: affordable first, otherwise the cheapest one plus how far to walk or bike to earn the difference. Gemini words the reply.
 - **If Gemini is slow** (over 5 s), down or over its limits, the reply is a canned message.
 
-## 4. Voice input and speech output (built in the backend, not in the current UI)
+## 4. Route safety: Gemini vision over Mapillary street photos
+
+**Endpoint:** `POST /api/companion/route-safety`. **Code:** `backend/scripts/route-safety-generate.ts` (makes the ratings), `backend/src/safety/`, `backend/src/routes/safety.ts`.
+
+1. **Made once, offline.** `npm run safety:generate` gets a walking path for each of 4 demo routes from the public Valhalla server, then picks up to 6 Mapillary street-level photos along it (within 25 m of the path, no panoramas, 2022 or later preferred, at most 2 from one photo sequence).
+2. **One Gemini vision call per route** (`gemini-3.5-flash-lite`): the photos go in as images, in memory only, with a response schema. Gemini rates lighting, sidewalks, traffic and crossings (`good`, `fair`, `poor` or `unknown` when not visible), gives an overall rating and a 1–5 score, and writes a short summary to be read aloud. The code validates the answer, and lowers the confidence when fewer than 4 photos were used or the newest photo is older than 2022.
+3. **Saved to `backend/src/safety/ratings.json`.** The endpoint only reads that file. It never calls Gemini or Mapillary when a user asks, so it answers instantly and uses no quota. The photos themselves aren't stored; only the rating, photo counts and dates, and the photo creators' names are.
+4. **In the app:** Muta's `get_route_safety` tool calls the endpoint (with the map's planned start and end when there is one). A rated route shows on the map as a card with the four factor notes, the source note and the Mapillary attribution. Any other route gets an honest "I don't have street photo data for that route yet."
+
+**Honest limits:**
+- Only 4 rated routes: Builders Club (the demo home) to Central Station and to Victoria Park, Waterloo Park to Waterloo Public Square Station, and University of Waterloo to Waterloo Public Square Station.
+- 4 to 6 photos per route, taken between 2016 and 2024. Streets change, so every answer says: "Conditions change; this isn't a safety guarantee."
+- It's a model's estimate from photos, not an audit or official data.
+- Imagery is Mapillary's, CC BY-SA 4.0. The attribution and photo creators are shown with every rating.
+
+## 5. Voice input and speech output (built in the backend, not in the current UI)
 
 These are built and tested in the backend, but **the current frontend doesn't use them**: the Community chat is text only, and Muta's voice runs on ElevenLabs.
 
@@ -61,11 +77,11 @@ These are built and tested in the backend, but **the current frontend doesn't us
   - voice: 4 a minute, 30 a day;
   - planning and place discovery: 3 a minute, 30 a day.
 - **Numbers come from code, not from the model.** Answers are checked for numbers that aren't in the tool results.
-- **Tests run against a mocked Gemini.** The planner suite has 167 checks, chat 62, and the companion suite covers function calls, history, account reads, action validation and privacy.
+- **Tests run against a mocked Gemini.** The planner suite has 167 checks (166 passed on 2026-11-08; the "daily cap flagged" check failed), chat 62, route safety 15, and the companion suite covers function calls, history, account reads, action validation and privacy.
 
 ## Not built
 
-- Route safety ratings.
-- Gemini vision.
-- Voice input and Gemini speech in the current UI (they exist in the backend only, see section 4).
+- Route safety for routes other than the 4 demo routes, and live (on-request) photo rating. Ratings are generated ahead of time.
+- Trip photos (the optional photo evidence on a trip) aren't analysed by Gemini or any other vision service. They're stored as supporting evidence only.
+- Voice input and Gemini speech in the current UI (they exist in the backend only, see section 5).
 - Muta's live voice conversation doesn't use our Gemini calls. It runs on the ElevenLabs agent, whose LLM is configured on ElevenLabs, not by our code.
