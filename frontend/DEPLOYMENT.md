@@ -1,6 +1,6 @@
 # Vercel frontend / Render backend
 
-Import `kostslava/commutr` into Vercel and set the **Root Directory** to `frontend`. The project uses Vite, runs `npm ci` and `npm run build`, and publishes `dist`.
+Vercel project `kostslavas-projects/commutr` is connected to `kostslava/commutr` on GitHub. Its **Root Directory** is `frontend`; the project uses Vite on Node 24, runs `npm ci` and `npm run build`, and publishes `dist`. Pushes to `main` deploy production automatically. The root `.vercelignore` excludes backend source, docs and filming files from manual CLI uploads.
 
 `vercel.json` forwards `/api/*` and `/health` to `https://commutr-backend.onrender.com` without changing the browser's paths. `/routing/*` forwards street-path requests to the existing Valhalla provider. Other app navigations fall back to `index.html`; API failures are not rewritten to HTML. Leave `VITE_API_URL` unset so API calls use this same-origin proxy. Keep all Gemini and ElevenLabs keys on Render, with no provider credentials in Vercel's frontend environment.
 
