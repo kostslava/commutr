@@ -18,7 +18,9 @@
     "test:chat": "tsx scripts/test-chat.ts",
     "test:planner": "tsx scripts/test-planner.ts",
     "test:real": "tsx scripts/test-real.ts",
-    "geocode:warm": "tsx scripts/geocode-warm.ts"
+    "geocode:warm": "tsx scripts/geocode-warm.ts",
+    "agent:setup": "tsx scripts/elevenlabs-agent.ts setup",
+    "agent:verify": "tsx scripts/elevenlabs-agent.ts verify"
   },
   "dependencies": {
     "@google/genai": "^3.0.0",

@@ -96,6 +96,45 @@ Sign up or sign in at [elevenlabs.io](https://elevenlabs.io). The free plan is e
 
 ---
 
+## Set it up from the command line (recommended)
+
+The dashboard may only show a template browser, with no blank agent. Instead, a script creates or updates the whole agent through the ElevenLabs API: the name, first message, system prompt, LLM, voice, the 7 webhook tools and the allowlist. **Sections 3 to 5 then only explain what it set up**; you don't click through them.
+
+- **Config:** [`backend/elevenlabs/agent.json`](../backend/elevenlabs/agent.json) is the source of truth for the agent. It holds the prompt and first message (copied from section 4), the LLM (`gemini-3.5-flash-lite`, with `gemini-3.5-flash` as fallback), the premade voice **Jessica** (`cgSgspJ2msm6clMCkdW9`), the tools and the secret's **name**. It contains no secret values. Change the agent there, not in the dashboard, and re-run the script.
+- **State:** [`backend/elevenlabs/state.json`](../backend/elevenlabs/state.json) keeps the agent and tool ids (not secrets), so re-runs update the existing agent instead of creating duplicates.
+
+**Once:**
+1. Prerequisites 2.1–2.3: backend, `AGENT_TOOL_SECRET`, and the tunnel.
+2. Make sure `ELEVENLABS_API_KEY` is set in `backend/.env`. The script reads only that line, inside its own process, and never prints it. You don't need `elevenlabs auth login`.
+3. In the ElevenLabs dashboard, a human creates a workspace secret named exactly **`commutr_agent_secret`**, whose value is the `AGENT_TOOL_SECRET` from `backend/.env`.
+   - On a secrets page in the agents section's settings, if there is one *(UNVERIFIED)*;
+   - or from any webhook tool: Headers → type **Secret** → **Create New Secret**.
+
+   The script only looks the secret up **by name** and references it by id. It never reads or sends the value. If the secret is missing, it stops before changing anything.
+
+**Create or update the agent** (also after **every tunnel restart**, with the new URL):
+```
+cd backend
+npm run agent:setup -- --tunnel https://<words>.trycloudflare.com      # or: TUNNEL_URL=https://... npm run agent:setup
+```
+It prints each tool (created or updated) and its URL, then the agent id, the LLM ElevenLabs accepted, the voice and the dashboard link *(link format UNVERIFIED)*. Re-running only updates; nothing is duplicated.
+
+**Check the tools without spending agent minutes:**
+```
+cd backend
+(set -a; . ./.env; set +a; npm run agent:verify -- --tunnel https://<words>.trycloudflare.com)
+```
+This calls all 7 tool endpoints through the tunnel with the secret from your shell, never printed, plus one call without it, which must return 401. Nothing in the data changes:
+- redeem is called without `confirm`;
+- trips/start gets an invalid mode;
+- trips/finish runs only when no trip is active.
+
+The `plan_trip` check makes about 3 real Gemini calls of our own.
+
+After setup, go to section 3.7 for the allowlist (the script sets `localhost`; add your frontend's hostname in `agent.json`), then section 6 to test by voice.
+
+---
+
 ## 3. Create the agent in the dashboard
 
 ### 3.1 Find the agents product
