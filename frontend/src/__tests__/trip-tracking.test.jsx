@@ -78,8 +78,16 @@ it('keeps real photo uploads on the backend when demo submission is not requeste
  expect(api.mock.calls.find(([path])=>path==='/trips/14/evidence')[1].get('photo').name).toBe('walk.png');
 });
 it('does not restore an old server demo after completing it locally',async()=>{
- api.mockResolvedValue({trips:[{id:12,mode:'transit',status:'active',demo:true}]});
+ api.mockResolvedValue({trips:[{id:12,mode:'transit',status:'active',demo:true,demo_destination:'Kitchener GO station'}]});
  const first=renderHook(()=>useTripTracker(vi.fn()));await waitFor(()=>expect(first.result.current.trip?.id).toBe(12));
  await act(async()=>{await first.result.current.uploadEvidence(new File(['photo'],'ticket.png',{type:'image/png'}))});await act(async()=>{await first.result.current.finish()});first.unmount();
+ const next=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});expect(next.result.current.trip).toBeNull();
+});
+
+it('awards photo points for an existing GPS trip without finishing it on the server',async()=>{
+ api.mockResolvedValue({trips:[{id:12,mode:'bike',status:'active',started_at:'2026-11-08T08:00:00Z'}]});
+ const first=renderHook(()=>useTripTracker(vi.fn(),{points_today:0}));await waitFor(()=>expect(first.result.current.trip?.id).toBe(12));api.mockClear();
+ await act(async()=>{await first.result.current.uploadEvidence(new File(['photo'],'bike.png',{type:'image/png'}),{demo:true,distance_km:1.2})});
+ let finished;await act(async()=>{finished=await first.result.current.finish()});expect(finished.trip.points_awarded).toBe(7);expect(first.result.current.trip).toBeNull();expect(api).not.toHaveBeenCalled();first.unmount();
  const next=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});expect(next.result.current.trip).toBeNull();
 });
