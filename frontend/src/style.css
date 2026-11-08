@@ -36,3 +36,12 @@ body{background:#e9eedf}.app{max-width:520px;min-height:100dvh;margin:0 auto;bac
 @media(max-width:350px){.header-compact .header-context{left:132px;width:calc(100% - 145px)}.header-context h1{font-size:29px}.header-compact .brand-snake{width:97px}.header-compact .header-metrics{gap:10px}.header-compact .header-metrics button{font-size:17px}.experience .glass-nav button span{font-size:9px}.score-number>span{font-size:22px}.communities{gap:9px}.server-rail{width:45px}.server-rail button{width:43px;height:45px}.channel-body{padding:16px 11px}.server-banner h2{font-size:23px}}
 .header-compact .brand-snake.settled{animation:none;transform:none}.header-compact .brand-snake.arriving{animation:snake-arrive 900ms cubic-bezier(.2,.75,.2,1) both}.header-home .brand-snake.initial{animation:none;opacity:0}.header-home .brand-snake.returning{animation:snake-return 850ms cubic-bezier(.3,0,.2,1) both}
 .preview-caption select{font:11px 'Nunito';font-weight:800;color:#365038;border:1px solid #95ad7e;border-radius:9px;padding:3px 6px;background:#f8faef;cursor:pointer}
+
+/* Trip controls leave the map visible; supporting detail opens on demand. */
+.experience .map-trip{padding:12px;border-radius:19px;bottom:24px}
+.experience .map-trip h2{font-size:19px}.map-trip .trip-title p{font-size:11px;margin-top:3px}
+.trip-actions{display:flex;align-items:stretch;gap:8px;margin-top:10px}
+.experience .trip-actions .primary{flex:1;width:auto;margin:0;min-height:40px;padding:8px 12px}
+.trip-actions .trip-details-toggle{width:40px;padding:0;justify-content:center;border:1.5px solid var(--ink);border-radius:12px}
+.trip-actions .trip-details-toggle[aria-expanded=true] svg{transform:rotate(180deg)}
+.map-trip .trip-description{margin-top:9px;padding-top:5px;border-top:1px solid #cbd6bd}
