@@ -100,7 +100,7 @@ Sign up or sign in at [elevenlabs.io](https://elevenlabs.io). The free plan is e
 
 The dashboard may only show a template browser, with no blank agent. Instead, a script creates or updates the whole agent through the ElevenLabs API: the name, first message, system prompt, LLM, voice, the 7 webhook tools and the allowlist. **Sections 3 to 5 then only explain what it set up**; you don't click through them.
 
-- **Config:** [`backend/elevenlabs/agent.json`](../backend/elevenlabs/agent.json) is the source of truth for the agent. It holds the prompt and first message (copied from section 4), the LLM (`gemini-3.5-flash-lite`, with `gemini-3.5-flash` as fallback), the premade voice **Jessica** (`cgSgspJ2msm6clMCkdW9`), the tools and the secret's **name**. It contains no secret values. Change the agent there, not in the dashboard, and re-run the script.
+- **Config:** [`backend/elevenlabs/agent.json`](../backend/elevenlabs/agent.json) is the source of truth for the agent. It holds the prompt and first message (copied from section 4), the LLM (`gemini-3.5-flash`; the script stops if the plan refuses it), the premade voice **Jessica** (`cgSgspJ2msm6clMCkdW9`), the tools and the secret's **name**. It contains no secret values. Change the agent there, not in the dashboard, and re-run the script.
 - **State:** [`backend/elevenlabs/state.json`](../backend/elevenlabs/state.json) keeps the agent and tool ids (not secrets), so re-runs update the existing agent instead of creating duplicates.
 
 **Once:**
@@ -130,6 +130,8 @@ This calls all 7 tool endpoints through the tunnel with the secret from your she
 - trips/finish runs only when no trip is active.
 
 The `plan_trip` check makes about 3 real Gemini calls of our own.
+
+**Check the agent really calls the tools (text only, no call minutes):** `npm run agent:test` runs the 5 cases in [`backend/elevenlabs/tests.json`](../backend/elevenlabs/tests.json) through ElevenLabs' agent-testing API. Each one checks that the agent's next turn makes a real, structured tool call and doesn't write it out as text. Each run costs credits (`credits_used` is printed). After the first test, it stops if that test used more than 200 credits (`--max-credits` changes the limit).
 
 After setup, go to section 3.7 for the allowlist (the script sets `localhost`; add your frontend's hostname in `agent.json`), then section 6 to test by voice.
 
@@ -183,12 +185,12 @@ Optional: put the same voice ID in `backend/.env` as `ELEVENLABS_VOICE_ID`, so t
 
 ### 3.5 LLM
 
-In the **Agent** tab, find the LLM / model selector *(location UNVERIFIED)* and choose **Gemini 3.5 Flash-Lite**.
+In the **Agent** tab, find the LLM / model selector *(location UNVERIFIED)* and choose **Gemini 3.5 Flash**. (Gemini 3.5 Flash-Lite was tried first, but in testing it sometimes wrote tool calls out as text instead of making them.)
 
 - ElevenLabs' docs list Gemini models as natively supported, including Gemini 3.5 Flash-Lite and Gemini 3.5 Flash. No Google key is needed; ElevenLabs runs the model.
-- It's fast and cheap, in the same family as our backend's Gemini, and fits our "best use of Gemini" story.
-- If Flash-Lite calls tools poorly in testing, switch to **Gemini 3.5 Flash**.
-- **Cost (UNVERIFIED):** ElevenLabs' pricing FAQ is inconsistent on whether LLM use is billed on top of call minutes or deducted from credits. Either way, Flash-Lite is the cheapest Gemini option.
+- It's fast, reliable at tool calls, in the same family as our backend's Gemini, and fits our "best use of Gemini" story.
+- Flash costs more per token than Flash-Lite. The docs give no per-model prices, but it should still be well within a demo budget (UNVERIFIED).
+- **Cost (UNVERIFIED):** ElevenLabs' pricing FAQ is inconsistent on whether LLM use is billed on top of call minutes or deducted from credits. Flash-Lite is the cheapest Gemini option; Flash costs more per token.
 - **Custom LLM:** ElevenLabs supports bringing your own LLM endpoint, but the docs don't say which plans include it (UNVERIFIED). We don't need it; don't set one up.
 
 ### 3.6 Turn-taking and interruptions
@@ -220,12 +222,17 @@ How you speak
 - Be warm and encouraging, never preachy about cars.
 - Stay on Commutr and getting around Kitchener-Waterloo. For anything else, say briefly that you can only help with Commutr and getting around KW, and offer something you can do.
 
+Using tools
+- Call tools only through function calling. Never write a tool name, parentheses, parameter names or code in your reply.
+- Never say "tool" or "function" to the user.
+- After a tool returns, speak only its "summary" (or a shorter natural version of it, keeping every number exactly).
+
 Tools and numbers
 - Never invent or guess numbers (points, eco score, streak, prices, minutes, km, bus times). Always get them from a tool.
 - Every tool returns a "summary" sentence. Say that summary, or a natural, shorter version of it, keeping every number exactly as given. If "ok" is false, the summary explains why: say it kindly.
 - Points, eco score, streak, points today: call get_status.
 - What they can get, what's locked and what's missing: call get_rewards.
-- Directions, "how do I get to", "should I bike or bus": call plan_trip with the destination as the user said it, and with origin_name if the user said where they are starting from (a place name or landmark). Leave origin_name out to use their saved home. Before calling it, say a short line like "One second, checking the best route." It can take several seconds.
+- Directions, "how do I get to", "should I bike or bus": call plan_trip with the destination as the user said it, and with origin_name if the user said where they are starting from (a place name or landmark). Leave origin_name out to use their saved home.
 - Starting a trip ("I'm heading out", "start my bike trip"): ask which mode if it's unclear (walk, bike, scooter, transit or car), then call start_trip. For transit, remind them to start at the stop.
 - Route safety: call get_route_safety. It is not available yet; say its summary.
 
@@ -281,8 +288,8 @@ Add each tool on the agent: **Agent tab → Tools → Add tool → Webhook** *(t
 4. On every other tool, add the same header, type **Secret**, and pick the existing `commutr_agent_secret`.
 
 **Optional per-tool settings** *(the labels are UNVERIFIED; the API names are from ElevenLabs' tool schema)*:
-- **Pre-tool speech** (`pre_tool_speech`): turn it on for `plan_trip`, so the agent says something before the slow call. The system prompt also asks for this.
-- **Interruptions while the tool runs** (`interruption_mode`, formerly "disable interruptions"): don't allow them for `redeem_reward` and `finish_trip`, so a stray noise can't cut off a confirmation.
+- **Pre-tool speech** (`pre_tool_speech`): **`auto`** on all 7 tools, so the platform decides when to say something while a slow tool runs. Don't use `force`, and don't add prompt lines telling the agent to say a filler sentence: forced pre-tool speech made the agent write the tool call out as text instead of making it.
+- **Interruptions while the tool runs** (`interruption_mode`, formerly "disable interruptions"): `disable_during_tool` for `redeem_reward` and `finish_trip`, so a stray noise can't cut them off while they run. The user can still interrupt the reply that follows.
 - **Tool call sound** (`tool_call_sound`, for example `typing`): optional for `plan_trip`.
 - **Execution mode**: leave it at the default (`immediate`).
 
@@ -327,7 +334,7 @@ Body parameters:
 | Field | Value |
 |---|---|
 | Name | `plan_trip` |
-| Description | Plans a green trip to a place in Kitchener-Waterloo by walking, biking or GRT transit, with times, points and the next bus, from the user's saved home or from a starting place they name. Use it whenever the user asks how to get somewhere. Say a short "one second" line before calling it. |
+| Description | Plans a green trip to a place in Kitchener-Waterloo by walking, biking or GRT transit, with times, points and the next bus, from the user's saved home or from a starting place they name. Use it whenever the user asks how to get somewhere. |
 | Method | POST |
 | URL | `BASE/api/agent/plan` |
 
@@ -335,8 +342,8 @@ Body parameters:
 
 | Identifier | Data type | Required | Description |
 |---|---|---|---|
-| `destination` | string | yes | Where the user wants to go, as they said it, for example "Waterloo Public Library", "home" or "campus". |
-| `origin_name` | string | no | Where the user is starting from, as they said it (a place name or landmark, for example "University of Waterloo"). Leave it out to use their saved home. |
+| `destination` | string | yes | Where the user wants to go, as they said it, for example 'Waterloo Public Library', 'home' or 'campus'. |
+| `origin_name` | string | no | Where the user is starting from, as they said it (a place name or landmark, for example 'University of Waterloo'). Leave it out to use their saved home. |
 
 Without `origin_name`, the trip starts from the user's saved home. The response's `origin_name` and the start of its `summary` always say where it starts ("From your saved home, …"). The backend also accepts `origin_lat` and `origin_lng`, but **don't add them as agent parameters**: the agent has no way to know coordinates.
 
@@ -353,7 +360,7 @@ Body parameters:
 
 | Identifier | Data type | Required | Description |
 |---|---|---|---|
-| `mode` | string (enum: `walk`, `bike`, `scooter`, `transit`, `car`) | yes | How the user is travelling. Ask if it's unclear. |
+| `mode` | string (enum: `walk`, `bike`, `scooter`, `transit`, `car`) | yes | How the user is travelling: walk, bike, scooter, transit or car. Ask if it's unclear. |
 
 If the dashboard offers an enum or "allowed values" option for strings *(UNVERIFIED)*, enter the five values. Otherwise, list them in the description.
 
@@ -412,7 +419,7 @@ Expected results come from the backend's templates. Numbers depend on the demo d
 | 3 | "Redeem the free coffee." | `get_rewards` if needed, then `redeem_reward` **without** confirm | "Free coffee at Maple Loop Coffee costs … points. Should I redeem it?" with **no** points spent yet |
 | 4 | "Yes, go ahead." | `redeem_reward` with `confirm: true` | "Done! You redeemed … Your code is CMTR-…, and you have … points left." |
 | 5 | "Actually, redeem it again." | `redeem_reward` | A refusal: "You already redeemed that reward today…" |
-| 6 | "How do I get to Waterloo Park?" | `plan_trip` | A short "one second" first, then something like "Biking is quickest, about … minutes, and earns about … points." |
+| 6 | "How do I get to Waterloo Park?" | `plan_trip` | Possibly a short filler line while it runs (the platform decides), then something like "From your saved home, biking takes about … minutes and earns about … points." It must never read out `plan_trip(…)` as text. |
 | 7 | "Take me to Fake Place Nowhere." | `plan_trip` | "I couldn't find that place in Kitchener-Waterloo. Can you say it another way?" |
 | 8 | "I'm biking to campus now." | `start_trip` (`mode: bike`) | "Your bike trip has started. Keep the Commutr app open so it can record your route." |
 | 9 | "Start a walking trip too." | `start_trip` | "You already have a bike trip going. Finish it first." |
@@ -548,7 +555,8 @@ So:
 | Tool call returns **503** `agent_not_configured` | `AGENT_TOOL_SECRET` is empty, or the backend wasn't restarted after setting it | Set it in `backend/.env` and restart `npm run dev` |
 | Tool call fails to connect, or returns 502 / 530 / 1033, or "tunnel not found" | The tunnel stopped, or **its URL changed** after a restart | Restart `cloudflared tunnel --url http://localhost:8787`, copy the **new** URL, and update the URL in **all 7 tools** |
 | Tool times out | The backend is slow (planner), or the timeout is too short | Keep the tool timeout at 15 s. Check the backend log. Run `npm run geocode:warm` so places resolve faster. |
-| The agent doesn't call a tool and makes up an answer | The tool description or system prompt wasn't saved, the tool isn't attached to this agent, or the LLM ignored it | Check the 7 tools appear on the agent and the prompt is saved. Make the description start with "Use it whenever…". Try **Gemini 3.5 Flash** instead of Flash-Lite. Use a Tests-tab tool-call test. |
+| The agent writes a tool call as text (for example `plan_trip(destination=…)`) instead of calling it | A weak LLM, forced pre-tool speech, or prompt lines asking for a filler sentence before tools | Use Gemini 3.5 Flash, keep `pre_tool_speech: auto`, keep the "Using tools" rules in the prompt, re-run `npm run agent:setup`, then `npm run agent:test` |
+| The agent doesn't call a tool and makes up an answer | The tool description or system prompt wasn't saved, the tool isn't attached to this agent, or the LLM ignored it | Check the 7 tools appear on the agent and the prompt is saved. Make the description start with "Use it whenever…". Check the LLM is **Gemini 3.5 Flash**. Run `npm run agent:test`. |
 | The agent says the literal `{{demo_user}}`, or tools return 400 `bad_demo_user` | The `X-Demo-User` header uses a dynamic variable with no value | Remove that header (the demo uses user 1), or set a test placeholder and pass `dynamicVariables` from the app |
 | **No audio** from the agent | The voice isn't usable (moderated voice or wrong ID), the browser blocked autoplay, or the wrong output device | Pick another premade voice, and check its ID with the curl in 3.4 (should be 200). Start sessions from a button click. Check the system output device. |
 | **Agent can't hear the user** | Mic permission denied, the page isn't HTTPS, or the wrong input device | Allow the mic in the browser's site settings, use HTTPS or `localhost`, and pick the right mic |
