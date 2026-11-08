@@ -2,6 +2,8 @@
 // tools from backend/elevenlabs/agent.json, through the ElevenLabs API.
 //
 //   npm run agent:setup -- --tunnel https://<words>.trycloudflare.com    (or TUNNEL_URL=...)
+//   npm run agent:setup -- --tunnel https://<service>.onrender.com --allowlist app.example.com,www.example.com
+//     --allowlist: frontend hostnames allowed to start sessions, added to agent.json's list (localhost)
 //   npm run agent:verify -- --tunnel https://<words>.trycloudflare.com
 //   npm run agent:test [-- --only "name,name"] [--max-credits N] [--total-credits N]
 //                                       text-only tool-call tests on the live agent (costs credits, no call minutes)
@@ -113,6 +115,16 @@ function toolConfig(t: ToolDef, secretId: string) {
   };
 }
 
+/** agent.json's allowlist plus --allowlist host1,host2 (hostnames only: no scheme, path or port). */
+function allowlist(): string[] {
+  const i = process.argv.indexOf('--allowlist');
+  const extra = i > 0 ? (process.argv[i + 1] ?? '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean) : [];
+  for (const h of extra) {
+    if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(h)) throw new Error(`--allowlist: "${h}" is not a bare hostname (no https://, path or port)`);
+  }
+  return [...new Set([...cfg.allowlist, ...extra])];
+}
+
 function agentBody(toolIds: string[], llm: string) {
   return {
     name: cfg.name,
@@ -126,11 +138,13 @@ function agentBody(toolIds: string[], llm: string) {
       conversation: { max_duration_seconds: cfg.max_duration_seconds },
       turn: { silence_end_call_timeout: cfg.silence_end_call_timeout_secs },
     },
-    platform_settings: { auth: { enable_auth: false, allowlist: cfg.allowlist.map((hostname) => ({ hostname })) } },
+    platform_settings: { auth: { enable_auth: false, allowlist: allowlist().map((hostname) => ({ hostname })) } },
   };
 }
 
 async function setup() {
+  const hosts = allowlist(); // validate --allowlist before any API call
+  console.log(`allowlist: ${hosts.join(', ')}`);
   KEY = elevenLabsKey();
   if (!KEY) throw new Error('ELEVENLABS_API_KEY is not set in backend/.env');
   const state = loadState();

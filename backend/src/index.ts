@@ -15,22 +15,33 @@ import { planRoutes } from './routes/plan.js';
 import { rewardRoutes } from './routes/rewards.js';
 import { ALLOW_BACKDATED, tripRoutes } from './routes/trips.js';
 import { transitRoutes } from './routes/transit.js';
-import { initStaticGtfs } from './transit/staticGtfs.js';
+import { bootInBackground } from './boot.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
-if (ALLOW_BACKDATED && isProduction) {
-  throw new Error('SCORING_ALLOW_BACKDATED=1 is a test-only flag and must not be used with NODE_ENV=production');
+// Test-only flag: in production any value other than unset or "0" refuses to start.
+const backdated = process.env.SCORING_ALLOW_BACKDATED;
+if (isProduction && backdated !== undefined && backdated !== '' && backdated !== '0') {
+  throw new Error('SCORING_ALLOW_BACKDATED is a test-only flag and must be unset (or 0) with NODE_ENV=production');
 }
 if (ALLOW_BACKDATED) console.warn('[trips] TEST MODE: backdated trips allowed (SCORING_ALLOW_BACKDATED=1)');
 
 const db = openDb(); // creates the schema on startup if missing
-await initStaticGtfs(); // GRT static GTFS: disk cache or download (max ~30 s); never throws
 const port = Number(process.env.PORT ?? 8787);
+// Render and similar hosts need 0.0.0.0; HOST overrides it.
+const hostname = process.env.HOST || '0.0.0.0';
+
+// CORS. Development: any origin (the frontend dev server). Production: only the origins in
+// FRONTEND_ORIGINS (comma separated, e.g. https://commutr.example.app); unset = no
+// cross-origin access. The ElevenLabs agent calls server to server, so it needs no CORS.
+export const frontendOrigins = (process.env.FRONTEND_ORIGINS ?? '')
+  .split(',')
+  .map((o) => o.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 
 const app = new Hono();
 
-// Development only: allow the frontend dev server (any origin) to call the API.
 if (!isProduction) app.use('*', cors());
+else if (frontendOrigins.length) app.use('*', cors({ origin: frontendOrigins }));
 
 app.get('/health', (c) => c.json({ ok: true }));
 
@@ -62,6 +73,15 @@ api.route('/', companionRoutes(db));
 api.route('/', planRoutes(db));
 app.route('/api', api);
 
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`Commutr backend listening on http://localhost:${info.port}`);
+serve({ fetch: app.fetch, port, hostname }, (info) => {
+  console.log(`Commutr backend listening on http://${hostname}:${info.port}${isProduction ? ' (production)' : ''}`);
+  // Which optional features are configured: yes/no only, never values.
+  const yes = (v: string | undefined) => (v ? 'yes' : 'no');
+  const e = process.env;
+  console.log(
+    `[config] Gemini key: ${yes(e.GEMINI_API_KEY)}, ElevenLabs key: ${yes(e.ELEVENLABS_API_KEY)}, ElevenLabs voice: ${yes(e.ELEVENLABS_VOICE_ID)}, agent secret: ${yes(e.AGENT_TOOL_SECRET)}, ` +
+      `CORS: ${isProduction ? `${frontendOrigins.length} allowed origin(s)` : 'any origin (development)'}`,
+  );
+  if (isProduction && !frontendOrigins.length) console.warn('[config] FRONTEND_ORIGINS is not set: browsers on other origins cannot call this API');
+  void bootInBackground(); // GTFS + place warm-up after /health is up
 });

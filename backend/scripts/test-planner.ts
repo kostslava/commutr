@@ -8,6 +8,7 @@
 // Servers: 8781 (main, mocked), 8782 (no agent secret, real Gemini ceilings, trip
 // updates down), 8783 (real run). Mock providers on 8789.
 
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { GEMINI_CHAT_MODEL } from '../src/chat/config.js';
@@ -15,7 +16,7 @@ import { BUILDERS_CLUB } from '../src/demoPlaces.js';
 import { DEFAULT_WAIT_MIN, PLAN_BUDGET_MS } from '../src/planner/config.js';
 import { DAILY_POINTS_CAP, MODE_RATES } from '../src/scoring/config.js';
 import { cycling, phone, track } from './lib/gps.js';
-import { addUser, startHarness, table, type Harness } from './lib/harness.js';
+import { addUser, BACKEND, startHarness, table, type Harness } from './lib/harness.js';
 import { startMockProviders, TEST_GRT, type Mock } from './lib/mock-providers.js';
 
 // ---------------------------------------------------------------------------
@@ -122,6 +123,7 @@ async function mocked() {
     }),
   );
   const main = await startHarness({ dbName: 'test-planner.db', port: 8781, env: mainEnv });
+  let prod: Harness | undefined;
   const cacheSrv = await startHarness({ dbName: 'test-planner-cache.db', port: 8784, env: plannerEnv('cache', mock.url) });
   // No agent secret, real (x1) Gemini ceilings, trip-updates feed unreachable.
   const second = await startHarness({
@@ -565,16 +567,53 @@ async function mocked() {
     r = await agent(main, 'POST', '/route-safety', { body: { destination: 'Test Library' } });
     check(c, 'route-safety: stub, available false', r.status === 200 && r.json?.available === false && !!r.json.summary);
 
+    // --- Production mode (Render) ---------------------------------------------------------------------
+    c = 'production';
+    mock.state.staticDelayMs = 5_000; // hold the GTFS download
+    const tProd = Date.now();
+    prod = await startHarness({
+      dbName: 'test-planner-prod.db',
+      port: 8786,
+      env: plannerEnv('prod', mock.url, { NODE_ENV: 'production', SCORING_ALLOW_BACKDATED: '0', FRONTEND_ORIGINS: 'https://app.example.test, https://www.example.test/', PLACE_WARM_ON_BOOT: '0', PLAN_CACHE_OFF: '1' }),
+    });
+    const stopsEarly = (await call(prod, 'GET', '/api/stops')).json?.stops?.length ?? -1;
+    check(c, '/health answers while GTFS is still downloading', stopsEarly === 0 && !prod.serverLog().includes('[boot] GTFS ready'), `${Date.now() - tProd} ms to /health, ${stopsEarly} stops so far`);
+    for (let w = 0; w < 50 && !prod.serverLog().includes('[boot] GTFS ready'); w++) await new Promise((res) => setTimeout(res, 200));
+    mock.state.staticDelayMs = 0;
+    const stopsLater = (await call(prod, 'GET', '/api/stops')).json?.stops?.length ?? 0;
+    check(c, 'GTFS loads in the background after boot', stopsLater > 0 && prod.serverLog().includes('[boot] GTFS ready'), `${stopsLater} stops`);
+    check(c, 'listens on 0.0.0.0 in production', prod.serverLog().includes('listening on http://0.0.0.0:8786 (production)'));
+    check(c, 'config log is yes/no only', /\[config\] Gemini key: yes, ElevenLabs key: (yes|no), ElevenLabs voice: (yes|no), agent secret: yes, CORS: 2 allowed origin\(s\)/.test(prod.serverLog()));
+    const origin = async (h: Harness, o: string, method = 'GET') => {
+      const res = await fetch(h.base + '/health', { method, headers: { Origin: o, ...(method === 'OPTIONS' ? { 'Access-Control-Request-Method': 'GET' } : {}) } });
+      return res.headers.get('access-control-allow-origin');
+    };
+    check(c, 'CORS: an origin from FRONTEND_ORIGINS is allowed', (await origin(prod, 'https://app.example.test')) === 'https://app.example.test');
+    check(c, 'CORS: a trailing slash in FRONTEND_ORIGINS is ignored', (await origin(prod, 'https://www.example.test')) === 'https://www.example.test');
+    check(c, 'CORS: preflight from an allowed origin', (await origin(prod, 'https://app.example.test', 'OPTIONS')) === 'https://app.example.test');
+    check(c, 'CORS: any other origin gets no CORS header', (await origin(prod, 'https://evil.example.test')) === null);
+    check(c, 'CORS: development still allows any origin', (await origin(main, 'https://evil.example.test')) === '*');
+    // The test-only backdating flag must refuse to start in production.
+    const refused = await new Promise<{ code: number | null; out: string }>((resolve) => {
+      const child = spawn('npx', ['tsx', 'src/index.ts'], { cwd: BACKEND, env: { ...process.env, COMMUTR_ENV_FILE: 'none', NODE_ENV: 'production', SCORING_ALLOW_BACKDATED: '1', PORT: '8785', DB_PATH: dataDir('prod') + 'refused.db' } });
+      let out = '';
+      child.stdout.on('data', (d) => (out += d));
+      child.stderr.on('data', (d) => (out += d));
+      const timer = setTimeout(() => child.kill('SIGKILL'), 20_000);
+      child.on('exit', (code) => { clearTimeout(timer); resolve({ code, out }); });
+    });
+    check(c, 'SCORING_ALLOW_BACKDATED=1 with NODE_ENV=production refuses to start', refused.code !== 0 && /test-only flag/.test(refused.out) && !refused.out.includes('listening'), `exit ${refused.code}`);
+
     // --- Secrets never leak ------------------------------------------------------------------------------
     c = 'secrets';
-    const logs = main.serverLog() + second.serverLog() + cacheSrv.serverLog();
+    const logs = main.serverLog() + second.serverLog() + cacheSrv.serverLog() + (prod?.serverLog() ?? '');
     const everything = logs + responseBodies.join('\n');
     check(c, 'agent secret never in logs or responses', !everything.includes(AGENT_SECRET) && !everything.includes(wrongSame));
     check(c, 'Gemini key never in logs or responses', !everything.includes(FAKE_GEMINI_KEY));
     check(c, 'fake key really used (sent to the mock)', mock.gemini.length > 0);
-    check(c, 'servers still up', main.serverRunning() && second.serverRunning() && cacheSrv.serverRunning());
+    check(c, 'servers still up', main.serverRunning() && second.serverRunning() && cacheSrv.serverRunning() && !!prod?.serverRunning());
   } finally {
-    for (const h of [main, second, cacheSrv]) {
+    for (const h of [main, second, cacheSrv, ...(prod ? [prod] : [])]) {
       h.db.close();
       await h.stop();
     }
