@@ -13,3 +13,7 @@ Finishing a trip and redeeming a reward require spoken confirmation. The fronten
 This is enforced entirely in `frontend/`; no backend files or live-agent configuration were changed. The voice session sends the confirmation instructions as a contextual update and the tool response repeats the required question.
 
 After Vercel authorization, verify the deployed `/health` and `/api/me`, a route request, and a short Muta call before sharing the URL.
+
+## Route safety
+
+Muta's `get_route_safety` client tool calls `POST /api/companion/route-safety`. It sends the planned map's origin and destination coordinates when both exist; otherwise it sends the tool's destination name. The tool receives the unchanged JSON. Available ratings appear in a scrollable map card with all four factor notes, the source note and every Mapillary attribution line. Changing the planned route clears the card, and late responses for an old route are ignored. Unavailable results are left for Muta to summarize. No backend or live-agent settings were changed.

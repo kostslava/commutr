@@ -12,6 +12,14 @@ afterEach(()=>{cleanup();vi.useRealTimers()});
 beforeEach(()=>{vi.clearAllMocks();api.mockResolvedValue({reply:'I’m here.',source:'gemini',actions:[]});Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:vi.fn().mockResolvedValue({getTracks:()=>[{stop:vi.fn()}]})}})});
 const context={page:'Home',activeTrip:null};
 describe('mascot companion',()=>{
+ it('returns the route-safety JSON from the shared action as the voice tool result',async()=>{
+  const result={available:true,summary:'Comfortable sidewalks.',rating:{overall:'good'},attribution:['Mapillary CC BY-SA 4.0']};
+  const execute=vi.fn().mockResolvedValue(result);voice.startSession.mockResolvedValue({endSession:vi.fn(),sendContextualUpdate:vi.fn()});api.mockResolvedValue({signed_url:'wss://example.test/session'});
+  render(<Companion execute={execute} context={context}/>);fireEvent.click(screen.getByLabelText('Open Muta'));fireEvent.click(screen.getByRole('button',{name:'Let’s talk'}));await screen.findByLabelText('Mute microphone');
+  const response=await voice.startSession.mock.calls[0][0].clientTools.get_route_safety({destination:'Victoria Park'});
+  expect(execute).toHaveBeenCalledWith({type:'get_route_safety',destination:'Victoria Park'});expect(response).toBe(result);
+ });
+
  it('keeps only the active text conversation, then starts fresh after closing',async()=>{
   render(<Companion execute={vi.fn()} context={context}/>);
   fireEvent.click(screen.getByLabelText('Open Muta'));fireEvent.click(screen.getByRole('button',{name:'Let’s type'}));

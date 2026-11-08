@@ -6,6 +6,7 @@ export function validAction(action){
  switch(action.type){
   case 'navigate':return pageNames.includes(action.page);
   case 'plan_trip':return typeof action.destination==='string'&&action.destination.trim().length>0&&action.destination.length<=200&&(action.origin_name===undefined||typeof action.origin_name==='string'&&action.origin_name.length<=120)&&(action.mode===undefined||['walk','bike','transit'].includes(action.mode));
+  case 'get_route_safety':return typeof action.destination==='string'&&action.destination.trim().length>0&&action.destination.length<=200;
   case 'start_trip':return ['walk','bike','scooter','transit','car'].includes(action.mode);
   case 'finish_trip':return true;
   case 'redeem_reward':return Number.isInteger(action.reward_id)&&action.reward_id>0;

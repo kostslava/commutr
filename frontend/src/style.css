@@ -82,3 +82,5 @@ body{background:#e9eedf}.app{max-width:520px;min-height:100dvh;margin:0 auto;bac
 .evidence-preview>span{flex:1;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
 .evidence-preview button{font-size:11px;font-weight:800;padding:7px;background:#e2eccf;border-radius:8px}.trip-evidence p{color:#8a3d28}
 .demo-trip-toggle{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:7px 0;font-size:11px;font-weight:800}.demo-trip-toggle input{accent-color:#306d48}.demo-trip-toggle small{font-size:9px;font-weight:600}
+
+.map-trip:has(.route-safety){max-height:calc(100% - 150px);overflow-y:auto;overscroll-behavior:contain}.route-safety{margin-top:12px;padding-top:10px;border-top:1px solid #cbd6bd;font-size:11px;line-height:1.4}.route-safety h3{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;font-size:13px;margin:0 0 7px}.route-safety h3 span{text-transform:capitalize}.route-safety dl{margin:0}.route-safety dl>div{margin:5px 0}.route-safety dt{font-weight:800;text-transform:capitalize}.route-safety dd{margin:1px 0 0}.route-safety p{margin:8px 0}.route-safety footer{font-size:10px;overflow-wrap:anywhere}
