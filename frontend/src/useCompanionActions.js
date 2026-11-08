@@ -16,12 +16,14 @@ export default function companionActions({navigate,setRoute,setMode,tracker,back
   }
   if(action.type==='finish_trip'){
    if(!tracker.trip)return {ok:false,summary:'There’s no active trip to finish.'};
+   if(action.expected_trip_id!==undefined&&tracker.trip.id!==action.expected_trip_id)return {ok:false,summary:'The active trip changed. Ask me to finish the new trip instead.'};
    const result=await tracker.finish();navigate('Explore');return result?{ok:true,summary:`Trip finished. You earned ${result.trip.points_awarded} points.`}:{ok:false,summary:'Couldn’t finish yet. Check the message on the map and retry.'};
   }
   if(action.type==='redeem_reward'){
    // Re-read the catalogue so a model cannot invent an ID, price, or eligibility.
    const catalogue=await api('/rewards'),reward=catalogue.rewards.find(r=>r.id===action.reward_id);
    if(!reward)return {ok:false,summary:'That reward is no longer available.'};navigate('Rewards');
+   if(action.expected_points_cost!==undefined&&reward.points_cost!==action.expected_points_cost)return {ok:false,summary:'The reward price changed. Ask again so I can confirm the new cost.'};
    if(reward.locked||!reward.affordable||reward.redeemed_today)return {ok:false,summary:'This reward is locked, unaffordable or already redeemed today. Check the shop for the requirements.'};
    const result=await api(`/rewards/${reward.id}/redeem`,{});await backend.refresh();navigate('Wallet');return {ok:true,summary:`Redeemed ${result.redemption.title}. Your code is ${result.redemption.code}. It’s saved in your wallet.`};
   }
