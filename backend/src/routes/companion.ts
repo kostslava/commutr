@@ -63,7 +63,7 @@ export function companionRoutes(db:DB){
   c.header('Cache-Control','no-store');
   const key=process.env.ELEVENLABS_API_KEY,id=agentId();
   if(!key||!id)return c.json({error:{code:'voice_not_configured',message:'Voice isn’t connected yet. You can type instead.'}},503);
-  const limit=takeUserRequest('voice',c.get('userId'));if(!limit.ok)return rateLimited(c,limit.retryAfterSec,'Please wait a moment before starting another call.');
+  const limit=takeUserRequest('voiceSession',c.get('userId'));if(!limit.ok)return rateLimited(c,limit.retryAfterSec,`Too many call attempts. Try again in ${limit.retryAfterSec} seconds, or type instead.`);
   try{
    const res=await fetch('https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?'+new URLSearchParams({agent_id:id}),{headers:{'xi-api-key':key},signal:AbortSignal.timeout(10000)});
    if(!res.ok)throw new Error('Voice unavailable');const data=await res.json() as {signed_url?:string};if(!data.signed_url?.startsWith('wss://'))throw new Error('No credential');

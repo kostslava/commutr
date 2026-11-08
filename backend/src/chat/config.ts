@@ -83,6 +83,9 @@ if (ceilingMultiplier !== 1) for (const c of Object.values(CEILINGS)) Object.ass
 export const USER_LIMITS = {
   text: { perMinute: 10, perDay: 100 },
   voice: { perMinute: 4, perDay: 30 },
+  // Muta session links serve the shared public demo account. Keep this separate
+  // from uploaded voice messages so a demo crowd cannot exhaust 30 daily starts.
+  voiceSession: { perMinute: 20, perDay: 1000 },
   /**
    * Trip plans (POST /api/plan, /api/agent/plan and /api/companion/plan share this). Sized
    * for a public demo where every visitor is demo user 1. Gemini quota is protected by
