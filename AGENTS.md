@@ -3,28 +3,33 @@
 ## What this is
 Hackathon web app (Kitchener-Waterloo region). Rewards people for replacing car trips with walking, cycling, or transit. Users earn points and exchange them for discounts and meals at local businesses and gift cards. Gamified (streaks, clubs). All merchants and sponsors are DEMO data. Do not claim any real government affiliation or real sponsor partnership in the code or UI copy.
 
-## Ownership (read this first)
-Two humans, two AI agents (Claude Code and Codex). Each agent works only in its human's area.
-- Backend (API, scoring, database, GTFS-RT, seed data): Shahmeer, using Claude Code. Folder: backend/
-- Frontend (UI, maps, PWA manifest and service worker, pages): teammate, using Codex. Folder: frontend/
-- docs/ is shared. docs/api.md is the contract between the two sides and is owned by the backend. The frontend agent must not edit it. If it needs a change, it tells its human, who asks the backend owner.
-- Never edit files outside your own folder. If a task needs that, stop and ask your human.
-- Root files (AGENTS.md, CLAUDE.md) may only be edited when your human explicitly asks you to.
+## Team split (read this first)
+Two humans, two AI agents. Each agent works only in its own human's folders.
+- frontend/ belongs only to the frontend teammate (Codex). Includes the UI, map, PWA manifest and service worker, and frontend docs (for example frontend/DEPLOYMENT.md).
+- backend/ and docs/ belong only to the backend teammate, Shahmeer (Claude Code). Includes the API, scoring, database, GTFS-RT, seed data, and docs/api.md, the contract between the two sides.
+- Never edit the other side's folder. Anything needed from the other side goes through a message between the two humans; the owner makes the change.
+- Root files (AGENTS.md, CLAUDE.md, README.md, COMPANION.md, questions.md, package.json) are edited only when your human explicitly asks. Either human may ask, after telling the other.
+- Nobody runs `npm run agent:setup` or `npm run companion:setup`, and nobody changes the live ElevenLabs agent (Muta), unless both humans agree first. `agent:setup` overwrites Muta.
 - Never make architecture, scope or design decisions on your own. Ask your human.
-- Git: commit every completed change directly to the `main` branch after running the relevant checks. Pull the latest `main` before starting; preserve unrelated work. Push when requested by the user. Never force push.
+- Git: pull `main` before starting. One branch per change (`backend/<topic>`, `frontend/<topic>`, `docs/<topic>`). Run the relevant checks. Merge to `main` by pull request (regular merge commit, keep the branch). Never force push. Push only when your human asks.
 - Tooling: npm, Node 22+.
 
 ## Stack
 - Backend: Node + TypeScript + Hono, SQLite (better-sqlite3), JSON REST
-- Frontend: decided by the frontend owner (Next.js or React/Vite)
-- Map: MapLibre GL JS + OpenFreeMap tiles
-- Place search: Nominatim (OSM). Set a User-Agent, max 1 request per second.
-- Street view: Mapillary (MapillaryJS, free token, must show Mapillary attribution). Crowdsourced, coverage in KW untested.
+- Frontend: React 18 + Vite 6, installable PWA via vite-plugin-pwa, Leaflet map, `@elevenlabs/client` for voice
+- Map: Leaflet with OpenStreetMap tiles (tile.openstreetmap.org). Walk and bike route lines come from the public Valhalla server through the Vite dev proxy `/routing`, which only exists in dev.
+- Place search: Nominatim (OSM), at most 1 request per second. The backend sets a User-Agent. The frontend map search calls Nominatim directly from the browser (which can't set a User-Agent).
+- Street view: Mapillary (MapillaryJS, free token, must show Mapillary attribution). Planned for route safety, not built. Crowdsourced, coverage in KW untested.
 - Chatbot: Gemini API (gemini-3.5-flash-lite) for chat with function calling and for voice transcription. Speech: ElevenLabs (eleven_flash_v2_5) first, Gemini TTS as the fallback. Keys in backend/.env (see backend/.env.example), never committed or logged.
-- Live voice agent (the mascot): an ElevenLabs agent. ElevenLabs' servers call the backend's /api/agent/* endpoints as tools. They need a public HTTPS URL: in development, a Cloudflare quick tunnel, whose URL changes on every restart and must be updated in the agent's tool settings. Every call sends the header X-Agent-Secret, which must match AGENT_TOOL_SECRET in backend/.env (never committed or logged). Tool setup: docs/agent-tools.md.
-- Trip planner: POST /api/plan, also /api/agent/plan. Gemini (gemini-3.5-flash-lite, function calling and structured output) chooses, orders and explains the options. Every number (minutes, km, points estimates, next bus) is computed by the backend from the live GRT data, the stops, the scoring config and Nominatim.
-- Route safety: Gemini rating routes from Mapillary photos. Coming in a later task; /api/agent/route-safety is a stub until then.
+- Live voice agent (the mascot, Muta): an ElevenLabs agent. The browser gets a signed link from `POST /api/companion/session` (the backend holds ELEVENLABS_API_KEY; the agent ID comes from ELEVENLABS_AGENT_ID or backend/elevenlabs/state.json) and runs Muta's voice tools in the app as browser (client) tools. No tunnel and no AGENT_TOOL_SECRET are needed. Details: docs/agent-tools.md and docs/elevenlabs-agent-setup.md section 7.
+- Legacy, unused by the frontend: the webhook agent design (`/api/agent/*`, `npm run agent:setup`, a Cloudflare tunnel, AGENT_TOOL_SECRET). The endpoints are still built.
+- Trip planner: `POST /api/plan`, and `POST /api/companion/plan` (used by Muta). `/api/agent/plan` is legacy. Gemini (gemini-3.5-flash-lite, function calling and structured output) chooses, orders and explains the options. Every number (minutes, km, points estimates, next bus) is computed by the backend from the live GRT data, the stops, the scoring config and Nominatim.
+- Route safety: Gemini rating routes from Mapillary photos. Not built yet; Muta answers that it isn't available, and the legacy `/api/agent/route-safety` is a stub.
 - Everything must be free or open source.
+
+## How the frontend reaches the backend
+- Dev: the frontend calls `/api` on its own origin and the Vite dev server forwards it to the backend on port 8787. The backend allows any origin when NODE_ENV isn't production. Running both and opening the app on a phone: docs/local-phone-run.md.
+- Production: the frontend needs VITE_API_URL set to the backend URL, and the backend needs the frontend's exact origin in FRONTEND_ORIGINS.
 
 ## Live transit (real data, GRT)
 - Base: https://webapps.regionofwaterloo.ca/api/grt-routes/api/ (HTTPS only). Feed 1 = buses, feed 2 = ION light rail.
@@ -38,11 +43,12 @@ Two humans, two AI agents (Claude Code and Codex). Each agent works only in its 
 - Shared bike and scooter data (GBFS) is linked at grt.ca/about-grt/open-data.
 
 ## Scoring
-points = verified_km x mode_rate x confidence, with a daily cap.
+points = verified_km x mode_rate x confidence x trust_multiplier, rounded, capped at 200 points a day (Toronto date).
 - User picks the mode before a trip.
-- Starting rates per km (tunable): walk 10, bike 6, transit 3.
+- Rates per km (tunable, in backend/src/scoring/config.ts): walk 10, bike 6, scooter 4, transit 12, car 0.
 - Confidence starts at 1.0 and checks subtract from it (hardcoded rules, keep them simple):
   - speed too high for the chosen mode
+  - a short burst at car speed on a walk, bike or scooter trip
   - impossible jumps between GPS points
   - too few points or poor accuracy
   - suspiciously constant speed
@@ -54,23 +60,25 @@ points = verified_km x mode_rate x confidence, with a daily cap.
 
 ## Eco score
 - 0 to 100 per user. Car trips reduce it.
-- Rewards are gated by eco score and cost points. Example: Tim Hortons $5 needs 80, $10 needs 85, $25 needs 95. Below the threshold the reward is locked even with enough points.
+- Rewards are gated by eco score and cost points. Example (demo seed): the $5, $10 and $25 Maple Loop Coffee cards need eco 80, 85 and 95. Below the threshold the reward is locked even with enough points.
 
 ## Features
 - Modes: walk, bike, scooter, transit, car (car allowed, lowers eco score)
 - Streaks (Duolingo style)
 - Clubs with a weekly shared goal (example: 150,000 steps) and a shared group reward
 - Rewards store (demo merchants, gift cards, local meals)
-- In-app chatbot: suggests places to eat that the user can afford with their current points and eco score; if they cannot afford one, suggests a place to walk, bike or ride to
+- Assistants: Muta is the main in-app assistant (typed: `POST /api/companion/chat`; voice: see Stack). `POST /api/chat` is the Community tab's help chat. Both suggest places to eat that the user can afford with their current points and eco score, and real KW places to walk, bike or ride to.
 - Saved locations (home, favourites)
 - Bike routes with a safety rating from Gemini vision over Mapillary street-level photos (coming later)
 - Live bus locations on the map
 
-## Not decided yet
-- Deployment (local first, Cloudflare optional)
+## Deployment
+- Backend: Render, https://commutr-backend.onrender.com
+- Frontend: not deployed yet; the frontend owner decides (Vercel in progress).
+- Local: docs/local-phone-run.md
 
 ## Demo data
-Seed fake users, trips, merchants and clubs. Keep seed data in one file so it is easy to reset.
+Seed fake users, trips, merchants and clubs. Keep seed data in one file (backend/src/seed.ts) so it is easy to reset.
 
 ## Delivery
 - Installable PWA (web app manifest + service worker), mobile first. Must be served over HTTPS (needed for install and geolocation).
