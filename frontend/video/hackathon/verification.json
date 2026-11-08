@@ -1,67 +1,25 @@
 {
-  "output": "/Users/slava/Movies/Commutr-Hackathon/Commutr-UGC-v2.mp4",
-  "durationSeconds": 56.86,
+  "output": "/Users/slava/Movies/Commutr-Hackathon/Commutr-UGC-v3.mp4",
+  "durationSeconds": 46.954362,
+  "previousVideoSeconds": 56.833333,
+  "secondsRemoved": 9.900000000000006,
   "width": 1080,
   "height": 1920,
   "fps": 30,
-  "videoCodec": "H.264",
-  "audioCodec": "AAC",
+  "frames": 1408,
   "decodeErrors": 0,
   "blackFramesDetected": false,
-  "silenceChecks": {
-    "opening": {
-      "peak": 0.0,
-      "rms": 0.0
-    },
-    "ground_timelapse": {
-      "peak": 0.0,
-      "rms": 0.0
-    }
+  "speechRemoved": false,
+  "speechSpedUp": false,
+  "guardedAppWordCount": 54,
+  "speechGuard": "All cut frame ranges checked against word timestamps from the actual v2 export. Other removed material was silent keys setup; the ground shot was silent and returned to approximately original speed.",
+  "completeAppExchangeVerified": true,
+  "silentSectionPeak": {
+    "opening": 0.0,
+    "walking": 5.708129720005672e-07
   },
-  "openingAddedOverlayAlphaMax": 0,
-  "appSourceRetained": {
-    "file": "IMG_4104.MOV",
-    "start": 5.8,
-    "end": 32.55,
-    "speechCuts": false
-  },
-  "spokenExchangeVerified": "Final export transcription includes the greeting, complete request, caf\u00e9 suggestion, walking estimate, full confirmation question, yes please, planning response, and from your saved home.",
-  "hyperframesCheck": {
-    "lint": {
-      "ok": true,
-      "errorCount": 0,
-      "warningCount": 3
-    },
-    "runtime": {
-      "ok": true,
-      "errorCount": 0,
-      "warningCount": 0
-    },
-    "layout": {
-      "ok": true,
-      "errorCount": 0,
-      "warningCount": 0
-    },
-    "motion": {
-      "ok": true,
-      "errorCount": 0,
-      "warningCount": 0
-    },
-    "contrast": {
-      "ok": true,
-      "errorCount": 0,
-      "warningCount": 0
-    },
-    "craft": {
-      "ok": true,
-      "errorCount": 0,
-      "warningCount": 19
-    },
-    "audio": {
-      "ok": true,
-      "errorCount": 0,
-      "warningCount": 0
-    }
-  },
-  "visualReview": "Final MP4 contact sheet reviewed: supplied opening, direct keys cut, complete app exchange, enlarged phone UI, ground time-lapse, points payoff and logo ending."
+  "integratedLoudnessLUFS": -14.9,
+  "truePeakDBFS": -1.0,
+  "visualReview": "Reviewed final MP4 across opening, active keys pickup, app exchange, confirmation, enlarged phone screen, full ground shot, points payoff and logo ending.",
+  "composition": "Existing HyperFrames graphics remain baked into the retained frames and move with the footage."
 }
