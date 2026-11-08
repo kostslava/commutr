@@ -13,6 +13,7 @@
 // user point balances are hand-set, not summed from trips.
 
 import { openDb } from './db.js';
+import { BUILDERS_CLUB } from './demoPlaces.js';
 import { addDays, torontoDate, torontoWeekStart } from './time.js';
 
 type Mode = 'walk' | 'bike' | 'scooter' | 'transit' | 'car';
@@ -93,7 +94,8 @@ const streaks = [
 ];
 
 const savedLocations = [
-  { id: 1, user_id: 1, kind: 'home', label: 'Home', lat: 43.4762, lng: -80.5371 },
+  // User 1's demo home: Builders Club, 165 King St W, Kitchener (coordinates in demoPlaces.ts).
+  { id: 1, user_id: 1, kind: 'home', label: BUILDERS_CLUB.name, lat: BUILDERS_CLUB.lat, lng: BUILDERS_CLUB.lng },
   { id: 2, user_id: 1, kind: 'favourite', label: 'Campus', lat: 43.4723, lng: -80.5449 },
   { id: 3, user_id: 2, kind: 'home', label: 'Home', lat: 43.4598, lng: -80.5162 },
   { id: 4, user_id: 2, kind: 'favourite', label: 'Work', lat: 43.4253, lng: -80.4392 },

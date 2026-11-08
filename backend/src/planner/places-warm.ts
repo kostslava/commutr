@@ -9,7 +9,10 @@
 //   expect:  checks a Nominatim result must pass (name pattern, town); otherwise the
 //            place is reported unresolved rather than guessed
 //   label:   the name to store (for address searches, which have no place name)
+//   fixed:   a place with known coordinates (src/demoPlaces.ts): stored as is, no network
 //   aliases: short names that reuse the key's best result
+
+import { BUILDERS_CLUB } from '../demoPlaces.js';
 
 export type WarmPlace = {
   key: string;
@@ -17,10 +20,13 @@ export type WarmPlace = {
   stop?: string;
   expect?: { name?: RegExp; town?: string };
   label?: string;
+  fixed?: { name: string; lat: number; lng: number; town: string };
   aliases?: string[];
 };
 
 export const WARM_PLACES: WarmPlace[] = [
+  // User 1's demo home, from the same address and coordinates as the seed.
+  { key: 'Builders Club', fixed: { name: `${BUILDERS_CLUB.name}, King Street West, Kitchener`, lat: BUILDERS_CLUB.lat, lng: BUILDERS_CLUB.lng, town: BUILDERS_CLUB.town }, aliases: ['Builders'] },
   { key: 'University of Waterloo', aliases: ['UW', 'UWaterloo'] },
   { key: 'Wilfrid Laurier University', aliases: ['Laurier', 'WLU'] },
   { key: 'Conestoga Mall' },

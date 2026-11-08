@@ -22,7 +22,7 @@ There is no login yet. Every `/api` request acts as **user 1**, unless it sends 
 X-Demo-User: 3
 ```
 
-Seed users: 1 Alex (eco 98), 2 Sam (eco 88), 3 Jordan (eco 82), 4 Taylor (eco 60, rewards mostly locked). This header will be replaced by real auth later.
+Seed users: 1 Alex (eco 98), 2 Sam (eco 88), 3 Jordan (eco 82), 4 Taylor (eco 60, rewards mostly locked). User 1's saved home is **Builders Club**, 165 King St W, Kitchener; the coordinates are in `backend/src/demoPlaces.ts`. This header will be replaced by real auth later.
 
 ### Errors
 
@@ -231,7 +231,7 @@ Response `200`:
     }
   ],
   "saved_locations": [
-    { "id": 1, "kind": "home", "label": "Home", "lat": 43.4762, "lng": -80.5371 },
+    { "id": 1, "kind": "home", "label": "Builders Club", "lat": 43.450696, "lng": -80.492268 },
     { "id": 2, "kind": "favourite", "label": "Campus", "lat": 43.4723, "lng": -80.5449 }
   ]
 }
@@ -421,7 +421,7 @@ Response `200`:
 ```json
 {
   "locations": [
-    { "id": 1, "kind": "home", "label": "Home", "lat": 43.4762, "lng": -80.5371 },
+    { "id": 1, "kind": "home", "label": "Builders Club", "lat": 43.450696, "lng": -80.492268 },
     { "id": 2, "kind": "favourite", "label": "Campus", "lat": 43.4723, "lng": -80.5449 }
   ]
 }

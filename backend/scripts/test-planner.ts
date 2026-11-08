@@ -11,6 +11,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { GEMINI_CHAT_MODEL } from '../src/chat/config.js';
+import { BUILDERS_CLUB } from '../src/demoPlaces.js';
 import { DEFAULT_WAIT_MIN, PLAN_BUDGET_MS } from '../src/planner/config.js';
 import { DAILY_POINTS_CAP, MODE_RATES } from '../src/scoring/config.js';
 import { cycling, phone, track } from './lib/gps.js';
@@ -34,7 +35,9 @@ const FAKE_GEMINI_KEY = 'test-gemini-key-SECRET-9a8b7c';
 const AGENT_SECRET = 'test-agent-secret-SECRET-5d6e7f';
 const responseBodies: string[] = [];
 
-const HOME: [number, number] = [43.4762, -80.5371]; // seeded home of user 1
+// The fake GRT network (mock-providers.ts) is built around this point, so the tests move user 1's
+// home here in their own test databases (the seed puts it at Builders Club, see demoPlaces.ts).
+const HOME: [number, number] = [43.4762, -80.5371];
 const dataDir = (name: string) => fileURLToPath(new URL(`../data/test-planner/${name}/`, import.meta.url));
 
 function plannerEnv(name: string, mockUrl: string, extra: Record<string, string> = {}): Record<string, string> {
@@ -128,10 +131,18 @@ async function mocked() {
   });
 
   try {
+    // The seed's demo home for user 1 is Builders Club; then move it to the test network's point.
+    let c = 'demo home';
+    const seededHome = main.db.prepare("SELECT label, lat, lng FROM saved_locations WHERE user_id = 1 AND kind = 'home'").get() as { label: string; lat: number; lng: number };
+    check(c, 'seed: user 1 home is "Builders Club" at the shared demo coordinates', seededHome.label === BUILDERS_CLUB.name && seededHome.lat === BUILDERS_CLUB.lat && seededHome.lng === BUILDERS_CLUB.lng, seededHome.label);
+    const otherHomes = main.db.prepare("SELECT user_id, label FROM saved_locations WHERE kind = 'home' AND user_id IN (2, 3, 4) ORDER BY user_id").all() as { user_id: number; label: string }[];
+    check(c, 'seed: users 2-4 keep their homes', otherHomes.length === 3 && otherHomes.every((h) => h.label === 'Home'));
+    for (const h of [main, second, cacheSrv]) h.db.prepare("UPDATE saved_locations SET lat = ?, lng = ? WHERE user_id = 1 AND kind = 'home'").run(HOME[0], HOME[1]);
+
     const u1 = main.db.prepare('SELECT name, email FROM users WHERE id = 1').get() as { name: string; email: string };
 
     // --- Happy path ------------------------------------------------------------------
-    let c = 'happy path';
+    c = 'happy path';
     const before = planRequests(mock).length;
     let r = await planCall(main, 1, { destination: 'Test Library' });
     const happy = r.json;
@@ -247,6 +258,9 @@ async function mocked() {
     check(c, 'summary starts with the named starting point', /^From Test Campus, /.test(r.json?.summary ?? ''), r.json?.summary);
     check(c, 'Gemini is told the start by name only', rawNamed.includes("I'm starting from Test Campus") && !/\d+\.\d{4,}/.test(rawNamed));
     check(c, 'origin search sends only the name to Nominatim', mock.nominatim.slice(n0b).some((n) => n.q === 'Test Campus') && mock.nominatim.slice(n0b).every((n) => !/lat=|lon=/.test(n.url)));
+    n0b = mock.nominatim.length;
+    r = await planCall(main, 1, { destination: 'Test Library', origin_name: 'Builders Club' });
+    check(c, 'user 1: origin_name "Builders Club" is the saved home, no network search', r.status === 200 && r.json?.origin === 'home' && r.json?.origin_name === 'your saved home' && mock.nominatim.length === n0b, `${r.json?.origin} ${r.json?.origin_name}`);
     userWithHome(main, 7741, 'Warm origin');
     n0b = mock.nominatim.length;
     r = await planCall(main, 7741, { destination: 'Test Library', origin_name: 'test WARM origin' });
@@ -393,7 +407,13 @@ async function mocked() {
     check(c, 'result failing the expected town: unresolved', !w.ok && /passed the checks/.test(w.reason), w.ok ? 'resolved' : w.reason);
     w = await warmOne({ key: 'Test Library', expect: { name: /Library/, town: 'Kitchener' } }, []);
     check(c, 'result passing the checks: stored', w.ok && w.via === 'nominatim' && w.result.town === 'Kitchener');
+    const { WARM_PLACES } = await import('../src/planner/places-warm.js');
+    const bc = WARM_PLACES.find((p) => p.key === 'Builders Club')!;
+    const nq1 = mock.nominatim.length;
+    w = await warmOne(bc, []);
+    check(c, 'Builders Club: fixed demo place, no network, same coordinates as the seed', w.ok && w.via === 'fixed' && w.result.lat === BUILDERS_CLUB.lat && w.result.lng === BUILDERS_CLUB.lng && w.result.town === 'Kitchener' && mock.nominatim.length === nq1);
     const warmCache = JSON.parse(readFileSync(warmFile, 'utf8'));
+    check(c, 'Builders Club and the alias "Builders" are in the warm cache', !!warmCache['builders club']?.expires && warmCache['builders']?.results?.[0]?.name === warmCache['builders club']?.results?.[0]?.name);
     check(c, 'warm cache: stations, aliases and checked results stored with 30-day expiry', ['test square station', 'the square', 'test library'].every((k) => warmCache[k]?.expires > Date.now() + 29 * day));
     check(c, 'warm cache: nothing outside the area, nothing unresolved', !JSON.stringify(warmCache).includes('Outside Place') && !warmCache['nope'] && !warmCache['outside place']);
 
