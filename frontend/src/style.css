@@ -45,3 +45,5 @@ body{background:#e9eedf}.app{max-width:520px;min-height:100dvh;margin:0 auto;bac
 .trip-actions .trip-details-toggle{width:40px;padding:0;justify-content:center;border:1.5px solid var(--ink);border-radius:12px}
 .trip-actions .trip-details-toggle[aria-expanded=true] svg{transform:rotate(180deg)}
 .map-trip .trip-description{margin-top:9px;padding-top:5px;border-top:1px solid #cbd6bd}
+
+.transit-demo-label{display:block;font-size:10px;color:#526b48;margin-top:7px}
