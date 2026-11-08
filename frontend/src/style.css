@@ -47,3 +47,7 @@ body{background:#e9eedf}.app{max-width:520px;min-height:100dvh;margin:0 auto;bac
 .map-trip .trip-description{margin-top:9px;padding-top:5px;border-top:1px solid #cbd6bd}
 
 .transit-demo-label{display:block;font-size:10px;color:#526b48;margin-top:7px}
+
+.shop-art .merchant-identity{display:flex!important;align-items:center;flex-direction:column;gap:5px;color:var(--ink)}
+.merchant-identity strong{font:24px 'Lilita One';line-height:1.05;text-align:center}
+.merchant-identity small{font-size:9px;font-weight:900;letter-spacing:1.5px}
