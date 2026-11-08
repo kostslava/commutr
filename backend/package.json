@@ -20,7 +20,8 @@
     "test:real": "tsx scripts/test-real.ts",
     "geocode:warm": "tsx scripts/geocode-warm.ts",
     "agent:setup": "tsx scripts/elevenlabs-agent.ts setup",
-    "agent:verify": "tsx scripts/elevenlabs-agent.ts verify"
+    "agent:verify": "tsx scripts/elevenlabs-agent.ts verify",
+    "agent:test": "tsx scripts/elevenlabs-agent.ts test"
   },
   "dependencies": {
     "@google/genai": "^3.0.0",

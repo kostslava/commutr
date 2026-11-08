@@ -59,7 +59,7 @@ ElevenLabs can't reach `localhost`, so it needs a public HTTPS URL. A Cloudflare
 ## 4. The tools
 
 ### `get_status`
-- **Description:** Gets the user's Commutr points, eco score, streak and points earned today. Use it when they ask how they're doing.
+- **Description:** Gets the user's Commutr points, eco score, streak and points earned today. Use it whenever they ask how they're doing or about their points or streak.
 - **Method:** GET
 - **URL:** `BASE/api/agent/status`
 - **Parameters:** none
@@ -80,7 +80,7 @@ Example response:
 ```
 
 ### `get_rewards`
-- **Description:** Lists the rewards the user can redeem now, and the locked ones with how many points or how much eco score they're missing. Use it before redeeming, or when they ask what they can get.
+- **Description:** Lists the rewards the user can redeem now, and the locked ones with how many points or how much eco score they're missing. Each reward has a reward_id. Use it before redeeming, or when they ask what they can get.
 - **Method:** GET
 - **URL:** `BASE/api/agent/rewards`
 - **Parameters:** none
@@ -109,15 +109,15 @@ Example response:
 ```
 
 ### `redeem_reward`
-- **Description:** Redeems a reward with the user's points. Call it first without `confirm` to get the cost, ask the user to confirm out loud, then call again with `confirm: true`. Never send `confirm: true` without the user's clear yes.
+- **Description:** Redeems a reward with the user's points. First call it without confirm to get the cost, ask the user to confirm out loud, then call it again with confirm true. Never send confirm true without the user's clear yes.
 - **Method:** POST
 - **URL:** `BASE/api/agent/redeem`
 - **Body parameters:**
 
   | Name | Type | Required | Description |
   |---|---|---|---|
-  | `reward_id` | integer | yes | The `reward_id` from `get_rewards`. |
-  | `confirm` | boolean | no | `true` only after the user confirmed out loud. Anything else just asks. |
+  | `reward_id` | integer | yes | The reward_id from get_rewards. Never guess it. |
+  | `confirm` | boolean | no | True only after the user clearly confirmed out loud. Leave it out on the first call. |
 
 Example response without `confirm`:
 ```json
@@ -153,8 +153,8 @@ Other `ok: false` codes:
 
   | Name | Type | Required | Description |
   |---|---|---|---|
-  | `destination` | string | yes | Where the user wants to go, as they said it, e.g. "Waterloo Public Library", "home" or "campus". |
-  | `origin_name` | string | no | Where the user is starting from, as they said it (a place name or landmark, e.g. "University of Waterloo"). Leave it out to use their saved home. |
+  | `destination` | string | yes | Where the user wants to go, as they said it, for example 'Waterloo Public Library', 'home' or 'campus'. |
+  | `origin_name` | string | no | Where the user is starting from, as they said it (a place name or landmark, for example 'University of Waterloo'). Leave it out to use their saved home. |
 
   Without `origin_name`, the trip starts from the user's saved home. The response always says where it starts: `origin` is `home`, `named` or `given`, `origin_name` is the starting point in words ("your saved home", "University of Waterloo"), and the `summary` begins with it. The app can also send `origin_lat` and `origin_lng` (numbers, said as "your current location"), but the voice agent leaves them out, and they can't be combined with `origin_name`.
 
@@ -184,14 +184,14 @@ Example response (shortened; the full shape is `POST /api/plan` in `docs/api.md`
 - `rate_limited`
 
 ### `start_trip`
-- **Description:** Starts tracking a trip in the chosen mode. Use it when the user says they're setting off. The Commutr app must stay open to record the route.
+- **Description:** Starts tracking a trip in the chosen mode when the user says they're setting off. The Commutr app must stay open to record the route.
 - **Method:** POST
 - **URL:** `BASE/api/agent/trips/start`
 - **Body parameters:**
 
   | Name | Type | Required | Description |
   |---|---|---|---|
-  | `mode` | string, one of `walk`, `bike`, `scooter`, `transit`, `car` | yes | How the user is travelling. |
+  | `mode` | string, one of `walk`, `bike`, `scooter`, `transit`, `car` | yes | How the user is travelling: walk, bike, scooter, transit or car. Ask if it's unclear. |
 
 Example response:
 ```json
@@ -205,14 +205,14 @@ Example response:
 If a trip is already running: `ok: false`, `code: "trip_already_active"`.
 
 ### `finish_trip`
-- **Description:** Finishes the user's current trip and scores it. If very little GPS was recorded, it warns first; only finish anyway (`confirm: true`) if the user agrees.
+- **Description:** Finishes the user's current trip and scores it. Ask the user first. If it warns that too little GPS was recorded, read the warning and only call again with confirm true if they agree.
 - **Method:** POST
 - **URL:** `BASE/api/agent/trips/finish`
 - **Body parameters:**
 
   | Name | Type | Required | Description |
   |---|---|---|---|
-  | `confirm` | boolean | no | `true` to finish even though too little GPS was recorded (that trip earns no points). |
+  | `confirm` | boolean | no | True only to finish even though too little GPS was recorded, after the user agreed. Leave it out on the first call. |
 
 Example response:
 ```json
@@ -229,7 +229,7 @@ Example response:
 - `few_gps_points`: the summary explains, and the trip stays active.
 
 ### `get_route_safety`
-- **Description:** Gets a safety rating for the route to a place. Not available yet; it says so.
+- **Description:** Gets a safety rating for the bike route to a place. Not available yet; it says so.
 - **Method:** POST
 - **URL:** `BASE/api/agent/route-safety`
 - **Body parameters:**

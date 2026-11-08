@@ -3,6 +3,7 @@
 //
 //   npm run agent:setup -- --tunnel https://<words>.trycloudflare.com    (or TUNNEL_URL=...)
 //   npm run agent:verify -- --tunnel https://<words>.trycloudflare.com
+//   npm run agent:test                  text-only tool-call tests on the live agent (costs credits, no call minutes)
 //
 // setup: re-runnable. Finds the tools and the agent by name (and by the ids in
 //   backend/elevenlabs/state.json) and updates them; creates only what's missing. Run it
@@ -29,14 +30,17 @@ type ToolDef = {
   method: 'GET' | 'POST';
   path: string;
   body?: Record<string, unknown>;
-  force_pre_tool_speech?: boolean;
-  disable_interruptions?: boolean;
+  /** ElevenLabs: auto (default) | force | off */
+  pre_tool_speech?: 'auto' | 'force' | 'off';
+  /** ElevenLabs: allow (default) | disable_during_tool | disable_during_tool_and_turn */
+  interruption_mode?: 'allow' | 'disable_during_tool' | 'disable_during_tool_and_turn';
 };
 type Config = {
   name: string;
   language: string;
   llm: string;
-  llm_fallback: string;
+  /** null: if the plan refuses `llm`, stop instead of falling back. */
+  llm_fallback: string | null;
   voice: { voice_id: string; name: string };
   max_duration_seconds: number;
   allowlist: string[];
@@ -46,13 +50,13 @@ type Config = {
   system_prompt: string;
   tools: ToolDef[];
 };
-type State = { agent_id?: string; tool_ids?: Record<string, string> };
+type State = { agent_id?: string; tool_ids?: Record<string, string>; test_ids?: Record<string, string> };
 
 const cfg = JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) as Config;
-const mode = process.argv[2] === 'verify' ? 'verify' : 'setup';
+const mode = process.argv[2] === 'verify' ? 'verify' : process.argv[2] === 'test' ? 'test' : 'setup';
 const argTunnel = process.argv.indexOf('--tunnel');
 const base = (argTunnel > 0 ? process.argv[argTunnel + 1] : process.env.TUNNEL_URL)?.replace(/\/+$/, '');
-if (!base || !/^https:\/\/[^/]+$/.test(base)) {
+if (mode !== 'test' && (!base || !/^https:\/\/[^/]+$/.test(base))) {
   console.error('Give the tunnel base URL: --tunnel https://<words>.trycloudflare.com (or TUNNEL_URL). HTTPS, no path.');
   process.exit(1);
 }
@@ -95,8 +99,8 @@ function toolConfig(t: ToolDef, secretId: string) {
     name: t.name,
     description: t.description,
     response_timeout_secs: cfg.tool_response_timeout_secs,
-    ...(t.force_pre_tool_speech ? { force_pre_tool_speech: true } : {}),
-    ...(t.disable_interruptions ? { disable_interruptions: true } : {}),
+    ...(t.pre_tool_speech ? { pre_tool_speech: t.pre_tool_speech } : {}),
+    ...(t.interruption_mode ? { interruption_mode: t.interruption_mode } : {}),
     api_schema: {
       url: base + t.path,
       method: t.method,
@@ -191,12 +195,12 @@ async function setup() {
   try {
     action = await send(llm);
   } catch (err) {
-    if (!(err instanceof ApiError && err.status === 422 && /llm/i.test(err.body))) throw err;
+    if (!(err instanceof ApiError && err.status === 422 && /llm/i.test(err.body)) || !cfg.llm_fallback) throw err;
     console.log(`LLM ${llm} was refused (HTTP 422: ${err.body.slice(0, 200)}); trying ${cfg.llm_fallback}`);
     llm = cfg.llm_fallback;
     action = await send(llm);
   }
-  saveState({ agent_id: agentId, tool_ids: toolIds });
+  saveState({ ...loadState(), agent_id: agentId, tool_ids: toolIds });
 
   // 5. Read back what ElevenLabs stored.
   const agent = await api<any>('GET', `/v1/convai/agents/${agentId}`);
@@ -263,8 +267,94 @@ async function verify() {
   if (failed) process.exitCode = 1;
 }
 
+// --- Text-only tool-call tests (ElevenLabs agent testing API) ------------------------------
+// Each test gives a chat history and checks the agent's NEXT turn for a real, structured
+// tool call (type "tool"). No audio and no call minutes, but each run bills credits
+// (reported as credits_used). Tests run one at a time; after the first, the run stops if it
+// used more than --max-credits (default 200).
+
+type AgentTest = { name: string; history: { role: 'user' | 'agent'; message: string }[]; tool: string; params: { path: string; description: string }[]; forbid?: { tool: string; path: string; value: unknown } };
+const TESTS_PATH = fileURLToPath(new URL('../elevenlabs/tests.json', import.meta.url));
+
+async function runAgentTests() {
+  KEY = elevenLabsKey();
+  if (!KEY) throw new Error('ELEVENLABS_API_KEY is not set in backend/.env');
+  const state = loadState();
+  if (!state.agent_id || !state.tool_ids) throw new Error('Run agent:setup first (no agent_id/tool_ids in state.json)');
+  const tests = JSON.parse(readFileSync(TESTS_PATH, 'utf8')).tests as AgentTest[];
+  const maxArg = process.argv.indexOf('--max-credits');
+  const maxCredits = maxArg > 0 ? Number(process.argv[maxArg + 1]) : 200;
+  const testIds = { ...(state.test_ids ?? {}) };
+  let total = 0;
+
+  for (const [i, t] of tests.entries()) {
+    const body = {
+      name: `Commutr: ${t.name}`,
+      type: 'tool',
+      chat_history: t.history.map((h, k) => ({ role: h.role, message: h.message, time_in_call_secs: k * 5 })),
+      tool_call_parameters: {
+        referenced_tool: { id: state.tool_ids[t.tool], type: 'webhook' },
+        parameters: t.params.map((p) => ({ path: p.path, eval: { type: 'llm', description: p.description } })),
+      },
+    };
+    let id: string | undefined = testIds[t.name];
+    if (id) {
+      try {
+        await api('PUT', `/v1/convai/agent-testing/${id}`, body);
+      } catch (err) {
+        if (!(err instanceof ApiError && (err.status === 404 || err.status === 405))) throw err;
+        id = undefined;
+      }
+    }
+    if (!id) id = (await api<{ id: string }>('POST', '/v1/convai/agent-testing/create', body)).id;
+    testIds[t.name] = id;
+    saveState({ ...loadState(), test_ids: testIds });
+
+    const started = await api<any>('POST', `/v1/convai/agents/${state.agent_id}/run-tests`, { tests: [{ test_id: id }] });
+    let run = started;
+    for (let w = 0; w < 40 && (run.test_runs ?? []).some((r: any) => r.status === 'pending'); w++) {
+      await new Promise((r) => setTimeout(r, 3_000));
+      run = await api<any>('GET', `/v1/convai/test-invocations/${started.id}`);
+    }
+    const tr = (run.test_runs ?? [])[0] ?? {};
+    const credits = Number(tr.credits_used ?? 0);
+    total += credits;
+    const turns: any[] = tr.agent_responses ?? [];
+    const calls = turns.flatMap((x) => x.tool_calls ?? []);
+    const callText = calls.map((c: any) => `${c.tool_name ?? c.name}(${String(c.params_as_json ?? JSON.stringify(c.params ?? c.parameters ?? {})).slice(0, 160)})`).join('; ') || 'none';
+    const said = turns.map((x) => x.message ?? '').join(' ').trim();
+    const leaked = /\b(get_status|get_rewards|redeem_reward|plan_trip|start_trip|finish_trip|get_route_safety)\b|system__|\w+\([^)]*=/.test(said);
+    let forbidden = false;
+    if (t.forbid) {
+      for (const c of calls) {
+        if ((c.tool_name ?? c.name) !== t.forbid.tool) continue;
+        try {
+          if (JSON.parse(c.params_as_json ?? '{}')[t.forbid.path] === t.forbid.value) forbidden = true;
+        } catch {
+          /* unparsable params */
+        }
+      }
+    }
+    const structured = calls.length > 0;
+    const ok = structured && !leaked && !forbidden;
+    console.log(`\n[${i + 1}/${tests.length}] "${t.history.at(-1)!.message}"`);
+    console.log(`  platform result: ${tr.status} (${tr.condition_result?.result ?? 'n/a'})${tr.condition_result?.rationale ? `: ${String(tr.condition_result.rationale).slice(0, 200)}` : ''}`);
+    console.log(`  structured tool call: ${structured ? 'yes' : 'NO'} -> ${callText}`);
+    if (said) console.log(`  agent text: ${said.slice(0, 200)}`);
+    console.log(`  tool call written as text: ${leaked ? 'YES (bad)' : 'no'}${t.forbid ? ` | ${t.forbid.tool} with ${t.forbid.path}=${JSON.stringify(t.forbid.value)}: ${forbidden ? 'YES (bad)' : 'no'}` : ''}`);
+    console.log(`  credits_used: ${tr.credits_used ?? 'not reported'}   => ${ok ? 'PASS' : 'FAIL'}`);
+    if (!ok) process.exitCode = 1;
+    if (i === 0 && credits > maxCredits) {
+      console.log(`\nSTOPPED: the first test used ${credits} credits (> ${maxCredits}). The other ${tests.length - 1} tests were not run.`);
+      process.exitCode = 1;
+      break;
+    }
+  }
+  console.log(`\nTotal credits_used: ${total}`);
+}
+
 try {
-  await (mode === 'verify' ? verify() : setup());
+  await (mode === 'verify' ? verify() : mode === 'test' ? runAgentTests() : setup());
 } catch (err) {
   if (err instanceof ApiError) console.error(`\nFAILED: ElevenLabs API ${err.message}: ${err.body}`);
   else console.error(`\nFAILED: ${scrub((err as Error).message)}`);
