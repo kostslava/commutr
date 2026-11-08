@@ -1,0 +1,51 @@
+{
+  "output": "/Users/slava/Movies/Commutr-Hackathon/Commutr-UGC.mp4",
+  "durationSeconds": 36.209,
+  "width": 1080,
+  "height": 1920,
+  "videoCodec": "H.264",
+  "audioCodec": "AAC",
+  "integratedLoudnessLUFS": -15.4,
+  "truePeakDBFS": -1.0,
+  "decodeErrors": 0,
+  "blackFramesDetected": false,
+  "visualReview": "Final export contact sheet reviewed across hook, dialogue, app, stationary time-lapse, payoff, and logo.",
+  "hyperframesCheck": {
+    "lint": {
+      "ok": true,
+      "errorCount": 0,
+      "warningCount": 7
+    },
+    "runtime": {
+      "ok": true,
+      "errorCount": 0,
+      "warningCount": 0
+    },
+    "layout": {
+      "ok": true,
+      "errorCount": 0,
+      "warningCount": 0
+    },
+    "motion": {
+      "ok": true,
+      "errorCount": 0,
+      "warningCount": 0
+    },
+    "contrast": {
+      "ok": true,
+      "errorCount": 0,
+      "warningCount": 0
+    },
+    "craft": {
+      "ok": true,
+      "errorCount": 0,
+      "warningCount": 15
+    },
+    "audio": {
+      "ok": true,
+      "errorCount": 0,
+      "warningCount": 0
+    }
+  },
+  "advisories": "Fast source-synced UGC captions trigger conservative reading-time advisories; monolithic overlay sections trigger maintainability advisories. Runtime, layout, contrast, motion and audio report no errors."
+}

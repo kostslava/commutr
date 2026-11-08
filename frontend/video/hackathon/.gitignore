@@ -1,0 +1,6 @@
+__pycache__/
+.hyperframes/
+renders/
+assets/*.mp4
+assets/*.mp3
+assets/sfx/

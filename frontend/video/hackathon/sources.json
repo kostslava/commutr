@@ -1,0 +1,18 @@
+{
+  "hook": {
+    "page": "https://www.soundboardly.com/sounds/what-is-this-guy-doing/",
+    "file": "https://cdn.soundboardly.com/uploads/2023/08/What-is-this-guy-doing.mp3"
+  },
+  "timelapse": {
+    "page": "https://www.myinstants.com/en/instant/cocomelon-intro-91408/",
+    "file": "https://www.myinstants.com/media/sounds/cocomelon-intro.mp3"
+  },
+  "effects": {
+    "source": "HyperFrames bundled Pixabay library",
+    "cues": [
+      "pop",
+      "whoosh",
+      "chime"
+    ]
+  }
+}
