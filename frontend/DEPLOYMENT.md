@@ -17,3 +17,7 @@ After Vercel authorization, verify the deployed `/health` and `/api/me`, a route
 ## Route safety
 
 Muta's `get_route_safety` client tool calls `POST /api/companion/route-safety`. It sends the planned map's origin and destination coordinates when both exist; otherwise it sends the tool's destination name. The tool receives the unchanged JSON. Available ratings appear in a scrollable map card with all four factor notes, the source note and every Mapillary attribution line. Changing the planned route clears the card, and late responses for an old route are ignored. Unavailable results are left for Muta to summarize. No backend or live-agent settings were changed.
+
+## Photo rehearsal
+
+The map's photo upload button now confirms a local demo submission: it never sends the chosen photo to the backend and labels the receipt as a demo. This works even if a previously active trip ID disappeared after a backend restart. The explicit “Demo trip · no GPS” flow starts and finishes entirely in browser memory, requires a photo confirmation, and awards no account points. Previously loaded server demo trips can also complete locally and are suppressed for the rest of that browser session. Real GPS recording and scoring still use the backend; the tracker retains its real multipart upload path for non-demo callers.

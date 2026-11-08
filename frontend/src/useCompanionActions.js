@@ -23,7 +23,7 @@ export default function companionActions({navigate,setRoute,setMode,tracker,back
   if(action.type==='finish_trip'){
    if(!tracker.trip)return {ok:false,summary:'There’s no active trip to finish.'};
    if(action.expected_trip_id!==undefined&&tracker.trip.id!==action.expected_trip_id)return {ok:false,summary:'The active trip changed. Ask me to finish the new trip instead.'};
-   const result=await tracker.finish();navigate('Explore');return result?{ok:true,summary:`Trip finished. You earned ${result.trip.points_awarded} points.`}:{ok:false,summary:'Couldn’t finish yet. Check the message on the map and retry.'};
+   const result=await tracker.finish();navigate('Explore');return result?{ok:true,summary:result.trip.local_demo?'Demo complete. No account points were awarded.':`Trip finished. You earned ${result.trip.points_awarded} points.`}:{ok:false,summary:'Couldn’t finish yet. Check the message on the map and retry.'};
   }
   if(action.type==='redeem_reward'){
    // Re-read the catalogue so a model cannot invent an ID, price, or eligibility.
