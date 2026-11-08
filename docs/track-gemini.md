@@ -34,7 +34,7 @@ All calls go through the official `@google/genai` SDK on the backend (`backend/s
 
 - Gemini gets the message, the last 6 turns and the current screen. It can call tools in up to 3 rounds, within 12 s.
 - **Account tools:** `get_my_status` (points, eco score, streak, today's points and cap), `get_affordable_rewards`, `get_locked_rewards` (with what's missing), `get_clubs`, and `get_reward_catalogue` (real reward IDs and eligibility).
-- **Place discovery:** `discover_places` searches real KW places through Nominatim on the server, for "I'm bored, where should I go?" requests.
+- **Place discovery:** `discover_places` searches real KW places through Nominatim on the server, for "I'm bored, where should I go?" requests. It reads a distance from the request ("a walk of about 2 km") and sorts places by how close their walk is to it, using the same walk estimate as the planner. Gemini gets each place's name, town and walk distance rounded to 0.5 km, never coordinates. Distances are computed in code, not by the model.
 - **App actions:** `navigate`, `plan_trip`, `start_trip`, `finish_trip` and `redeem_reward`. Gemini doesn't run these. It requests them, the backend checks their arguments and returns at most 3 as `actions`, and the browser validates and runs them through the app's own navigation, map and GPS tracker. The backend stays the authority for points, eligibility and balances.
 - **If Gemini fails,** the reply comes from the Community chat logic below, with no actions. A Gemini problem never becomes an error for the user.
 
@@ -80,7 +80,7 @@ These are built and tested in the backend, but **the current frontend doesn't us
   - every 429 says when to retry (`retry_after_sec` and a `Retry-After` header).
 - **The per-user limits don't guard the Gemini quota; the provider ceilings do.** Every visitor to the public demo is demo user 1, so the per-user limits are sized for a crowd. A plan uses Gemini only when the ceiling has room for all of its calls, and is computed otherwise.
 - **Numbers come from code, not from the model.** Answers are checked for numbers that aren't in the tool results.
-- **Tests run against a mocked Gemini.** The planner suite has 182 checks (all passed on 2026-11-08), chat 62, route safety 15, and the companion suite covers function calls, history, account reads, action validation and privacy.
+- **Tests run against a mocked Gemini.** The planner suite has 212 checks (all passed on 2026-11-08), place-discovery distance parsing 28, chat 62, route safety 15, and the companion suite covers function calls, history, account reads, action validation and privacy.
 
 ## Not built
 

@@ -45,7 +45,7 @@ export async function companionReply(db:DB,userId:number,message:string,history:
     for(const call of calls){
      const name=call.name||'',action=actionFor(name,call.args||{});let response:Record<string,unknown>;
      if(action){if(requested.length>=3)response={ok:false,summary:'Please ask for one task at a time.'};else{requested.push(action);response={ok:true,summary:'Action queued for the app. Do not claim it has completed until the app reports the result.'}}}
-     else if(name==='discover_places')response=await discoverPlaces(call.args?.query);
+     else if(name==='discover_places')response=await discoverPlaces(call.args?.query,{db,userId,forGemini:true});
      else if(name==='get_reward_catalogue'){
       const {listRewards}=await import('../rewards/redeem.js');response={rewards:listRewards(db,userId).map(r=>({reward_id:r.id,title:r.title,merchant:r.merchant.name,points_cost:r.points_cost,min_eco_score:r.min_eco_score,affordable:r.affordable,locked:r.locked,redeemed_today:r.redeemed_today}))};
      }else response=runTool(db,userId,name);

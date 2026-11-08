@@ -82,7 +82,13 @@ export type GeocodeOutcome = { ok: true; results: GeoResult[]; cached: boolean }
  * One Nominatim request within the KW box (waits for its 1-per-second slot). No cache.
  * `background`: lower priority (see backgroundSlot); `timeoutMs` then covers only the request.
  */
-async function search(query: string, timeoutMs: number, background = false): Promise<{ ok: true; results: GeoResult[]; outside: number } | { ok: false; reason: 'timeout' | 'error' | 'no_time' }> {
+/** A search box (degrees). Must lie inside P.KW_VIEWBOX; results outside the KW area are dropped regardless. */
+export type Box = { west: number; north: number; east: number; south: number };
+/** Search options for callers other than the planner. The defaults are the planner's: 3 results, the whole KW box. */
+export type SearchOptions = { limit?: number; box?: Box };
+const DEFAULT_LIMIT = 3;
+
+async function search(query: string, timeoutMs: number, background = false, opts: SearchOptions = {}): Promise<{ ok: true; results: GeoResult[]; outside: number } | { ok: false; reason: 'timeout' | 'error' | 'no_time' }> {
   let waitMs = 0;
   if (background) {
     await backgroundSlot();
@@ -95,13 +101,13 @@ async function search(query: string, timeoutMs: number, background = false): Pro
     if (waitMs) await sleep(waitMs);
   }
 
-  const v = P.KW_VIEWBOX;
+  const v = opts.box ?? P.KW_VIEWBOX;
   const url = new URL('/search', P.nominatimBaseUrl());
   url.search = new URLSearchParams({
     q: query,
     format: 'jsonv2',
     addressdetails: '1',
-    limit: '3',
+    limit: String(opts.limit ?? DEFAULT_LIMIT),
     countrycodes: 'ca',
     viewbox: `${v.west},${v.north},${v.east},${v.south}`,
     bounded: '1',
@@ -125,15 +131,48 @@ async function search(query: string, timeoutMs: number, background = false): Pro
 }
 
 /** Search within the KW box, cached (24 h, or 30 days for warmed places). `timeoutMs` covers waiting for a slot plus the request. */
-export async function geocode(query: string, timeoutMs: number): Promise<GeocodeOutcome> {
-  const key = normalise(query);
+export async function geocode(query: string, timeoutMs: number, opts: SearchOptions = {}): Promise<GeocodeOutcome> {
+  const key = searchKey(query, opts);
   const hit = cache[key];
   if (hit && expiresAt(hit) > Date.now()) return { ok: true, results: hit.results, cached: true };
-  const found = await search(query, timeoutMs);
+  const found = await search(query, timeoutMs, false, opts);
   if (!found.ok) return found;
   cache[key] = { at: Date.now(), results: found.results };
   save();
   return { ok: true, results: found.results, cached: false };
+}
+
+/**
+ * Cache key: the normalised query for the planner's default search (so warmed places and
+ * existing entries keep working); other limits or boxes get their own key.
+ */
+function searchKey(query: string, opts: SearchOptions): string {
+  const key = normalise(query);
+  const limit = opts.limit ?? DEFAULT_LIMIT;
+  if (limit === DEFAULT_LIMIT && !opts.box) return key;
+  const b = opts.box;
+  return `${key}|limit=${limit}` + (b ? `|box=${b.west},${b.north},${b.east},${b.south}` : '');
+}
+
+/**
+ * Remember places a search showed the user under their own names (24 h, the normal
+ * expiry), so a later plan for the same name resolves to the same place with no new
+ * request. Never replaces a fresh entry (a warmed place keeps its checked result).
+ */
+export function rememberPlaces(places: GeoResult[]) {
+  let changed = false;
+  for (const p of places) {
+    const keys = new Set([normalise(p.name)]);
+    const first = p.name.split(', ')[0]!.trim();
+    // The short name too ("Victoria Park"), when it is specific enough (two words or more).
+    if (first.split(/\s+/).length >= 2) keys.add(normalise(first));
+    for (const k of keys) {
+      if (hasFreshCache(k)) continue;
+      cache[k] = { at: Date.now(), results: [p] };
+      changed = true;
+    }
+  }
+  if (changed) save();
 }
 
 /** Fresh search for npm run geocode:warm (no cache read). Same slot and User-Agent rules. */

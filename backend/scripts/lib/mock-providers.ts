@@ -267,6 +267,23 @@ export async function startMockProviders(port: number): Promise<Mock> {
       if (state.nominatim === 'error') return send(503, { error: 'mock nominatim down' });
       const L = TEST_GRT.library;
       const hit = (name: string, lat: number, lng: number, road: string, city: string) => ({ lat: String(lat), lon: String(lng), name, display_name: `${name}, ${road}, ${city}, Ontario, Canada`, address: { road, city } });
+      // Discover: parks and a museum at known straight-line distances from the test home
+      // (43.4762, -80.5371). Honours viewbox + bounded and limit, like Nominatim.
+      if (/^(parks?|museums?)$/i.test(q)) {
+        const [w, n, e, s] = (u.searchParams.get('viewbox') ?? '-180,90,180,-90').split(',').map(Number);
+        const limit = Number(u.searchParams.get('limit') ?? 10);
+        const at = (km: number, bearing: number) => {
+          const rad = (bearing * Math.PI) / 180;
+          return [43.4762 + (km * Math.cos(rad)) / 111, -80.5371 + (km * Math.sin(rad)) / (111 * Math.cos((43.4762 * Math.PI) / 180))] as const;
+        };
+        const list = /^parks?$/i.test(q)
+          ? ([['Big Mock Park', 4.0, 200], ['Near Mock Park', 0.4, 100], ['Mid Mock Park', 1.5, 10], ['Other Mock Park', 1.65, 170], ['Far Mock Park', 2.9, 280], ['Little Mock Park', 0.9, 45], ['Edge Mock Park', 5.5, 135]] as const)
+          : ([['Mock Museum', 1.4, 20]] as const);
+        const out = list
+          .map(([name, km, b]) => { const [lat, lng] = at(km, b); return hit(name, Number(lat.toFixed(6)), Number(lng.toFixed(6)), 'Mock Road', 'Waterloo'); })
+          .filter((h) => Number(h.lon) >= w! && Number(h.lon) <= e! && Number(h.lat) <= n! && Number(h.lat) >= s!);
+        return send(200, out.slice(0, limit));
+      }
       // Ranking cases: the better name match is listed second (and is farther away).
       if (/^waterloo public library$/i.test(q)) {
         return send(200, [hit('Kitchener Public Library', 43.47, -80.53, 'Queen Street North', 'Kitchener'), hit('Waterloo Public Library', 43.456, -80.5, 'Albert Street', 'Waterloo')]);
