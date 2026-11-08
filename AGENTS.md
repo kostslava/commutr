@@ -11,7 +11,7 @@ Two humans, two AI agents (Claude Code and Codex). Each agent works only in its 
 - Never edit files outside your own folder. If a task needs that, stop and ask your human.
 - Root files (AGENTS.md, CLAUDE.md) may only be edited when your human explicitly asks you to.
 - Never make architecture, scope or design decisions on your own. Ask your human.
-- Git: one branch per person (backend/<topic>, frontend/<topic>). Merge to main by pull request only. No force pushes. Pull before you start.
+- Git: commit every completed change directly to the `main` branch after running the relevant checks. Pull the latest `main` before starting; preserve unrelated work. Push when requested by the user. Never force push.
 - Tooling: npm, Node 22+.
 
 ## Stack

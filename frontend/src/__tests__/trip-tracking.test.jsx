@@ -18,6 +18,25 @@ describe('foreground trip lifecycle',()=>{
   await act(async()=>{gpsCallback(point())});await waitFor(()=>expect(result.current.samples).toBe(2));
   await act(async()=>{await result.current.finish()});expect(geo.clearWatch).toHaveBeenCalledWith(42);expect(api).toHaveBeenCalledWith('/trips/9/finish',{});expect(result.current.trip).toBe(null);expect(refresh).toHaveBeenCalledOnce();
  });
+ it.each(['Walk','Bike','Transit'])('starts %s while GPS is acquiring a fix, then uploads only real positions',async(mode)=>{
+  geo.getCurrentPosition.mockImplementation((_,reject)=>reject({code:3,message:'Timeout expired'}));
+  api.mockImplementation(async(path,body)=>path==='/trips'?(body?{id:20,mode:body.mode,status:'active'}:{trips:[]}):{accepted:body.points.length});
+  const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});
+  await act(async()=>{await result.current.start(mode)});
+  expect(result.current.trip?.mode).toBe(mode.toLowerCase());expect(result.current.recording).toBe(true);expect(result.current.waitingForLocation).toBe(true);
+  expect(result.current.error).toBe('');expect(api.mock.calls.some(([p])=>p.endsWith('/points'))).toBe(false);
+  expect(geo.getCurrentPosition).toHaveBeenCalledWith(expect.any(Function),expect.any(Function),expect.objectContaining({enableHighAccuracy:false,maximumAge:30000}));
+  await act(async()=>{gpsCallback(point())});
+  await waitFor(()=>expect(result.current.samples).toBe(1));expect(result.current.waitingForLocation).toBe(false);
+ });
+ it('recovers from a watch timeout and reports denied tracking access',async()=>{
+  let watchError;geo.watchPosition.mockImplementation((cb,reject)=>{gpsCallback=cb;watchError=reject;return 42});
+  api.mockImplementation(async(path,body)=>path==='/trips'?(body?{id:21,mode:body.mode,status:'active'}:{trips:[]}):{accepted:body.points.length});
+  const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});await act(async()=>{await result.current.start('Walk')});
+  await act(async()=>{watchError({code:3,message:'Timeout expired'})});expect(result.current.waitingForLocation).toBe(true);expect(result.current.error).not.toMatch(/Timeout expired/);
+  await act(async()=>{gpsCallback(point())});await waitFor(()=>expect(result.current.error).toBe(''));expect(result.current.waitingForLocation).toBe(false);
+  await act(async()=>{watchError({code:1,message:'denied'})});expect(result.current.recording).toBe(false);expect(result.current.error).toMatch(/Allow location/);expect(geo.clearWatch).toHaveBeenCalledWith(42);
+ });
  it('does not start a trip when location permission is denied',async()=>{
   geo.getCurrentPosition.mockImplementation((_,reject)=>reject({code:1,message:'denied'}));const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});await act(async()=>{await result.current.start('Bike')});expect(result.current.error).toMatch(/Allow location/);expect(api.mock.calls.some(([p,b])=>p==='/trips'&&b)).toBe(false);expect(result.current.trip).toBe(null);
  });
