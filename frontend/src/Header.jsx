@@ -2,7 +2,7 @@ import React,{useLayoutEffect,useRef,useState} from 'react';
 import {stepLogoMotion} from './logoMotion';
 
 // Split the original artwork so the same mark travels out of the home wordmark.
-const markOutline='M165 0H407V122H155V87H165Z';
+const markOutline='M165 0H407V122H155V94H165Z';
 const dots='M226.5 99a8 8 0 1 0-16 0a8 8 0 1 0 16 0 M277 99a8 8 0 1 0-16 0a8 8 0 1 0 16 0';
 export default function Header({tab,eco,points,navigate}){
  const home=tab==='Home',header=useRef(null),mark=useRef(null),letters=useRef(null),ripple=useRef(null),wave=useRef(null),bounce=useRef(null),[width,setWidth]=useState(390);
