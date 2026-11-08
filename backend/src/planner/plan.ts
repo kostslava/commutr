@@ -31,7 +31,9 @@ export type PlanResponse = {
   /** True when Gemini's decision came from the 5-minute cache (the numbers are always fresh). */
   cached: boolean;
   destination: { name: string; kind: PlaceKind };
-  origin: 'home' | 'given';
+  origin: Origin['kind'];
+  /** The starting point in words: "your saved home", "your current location" or a place name. Never coordinates. */
+  origin_name: string;
   options: PlanOption[];
   recommendation: PlanMode | null;
   summary: string;
@@ -44,13 +46,14 @@ const fail = (status: PlanError['status'], code: string, message: string, summar
 
 // --- Summaries --------------------------------------------------------------------
 
-const MODE_WORD: Record<PlanMode, string> = { walk: 'Walking', bike: 'Biking', transit: 'Taking the bus' };
+const MODE_WORD: Record<PlanMode, string> = { walk: 'walking', bike: 'biking', transit: 'taking the bus' };
 
-function computedSummary(destName: string, options: PlanOption[], rec: PlanMode | null): string {
+/** Every summary starts by saying where the trip starts: "From your saved home, ...". */
+function computedSummary(start: string, destName: string, options: PlanOption[], rec: PlanMode | null): string {
   const best = options.find((o) => o.mode === rec);
-  if (!best) return `I couldn't find a walking, biking or direct bus option to ${destName}.`;
+  if (!best) return `From ${start}, I couldn't find a walking, biking or direct bus option to ${destName}.`;
   const bus = best.mode === 'transit' && best.next_bus ? ` on route ${best.next_bus.route}` : '';
-  const first = `${MODE_WORD[best.mode]}${bus} to ${destName} takes about ${best.minutes} minutes and earns about ${best.points_estimate} points.`;
+  const first = `From ${start}, ${MODE_WORD[best.mode]}${bus} to ${destName} takes about ${best.minutes} minutes and earns about ${best.points_estimate} points.`;
   const others = options.filter((o) => o !== best).map((o) => `${o.mode} ${o.minutes} min`);
   return others.length ? `${first} Other options: ${others.join(', ')}.` : first;
 }
@@ -67,12 +70,12 @@ const SYSTEM = [
   'First call find_destination with the destination, then get_route_options with the best matching place_id. You may also call get_live_buses_near or get_points_estimate.',
   'Never invent numbers. Only use minutes, km, points and bus times that appear in tool results.',
   'Choose the recommendation: prefer the greener choice and more points when times are similar; avoid walks longer than about 40 minutes when another option exists; prefer the bus when it is much faster.',
-  'The summary is read aloud: 1 or 2 short sentences, plain text, no markdown, no lists, no emoji. Mention the recommended mode, its minutes and its points.',
+  'The summary is read aloud: 1 or 2 short sentences, plain text, no markdown, no lists, no emoji. Begin it with "From <starting point>, " exactly as the request names the starting point, then the recommended mode, its minutes and its points.',
   'Never ask for or mention personal details. Merchants are demo data. Commutr is not affiliated with GRT; for fares say to check grt.ca.',
 ].join('\n');
 
 const FINAL_PROMPT =
-  'Now give your final answer as JSON: place_id (the place you planned for), recommendation (one mode from the options), order (all option modes, best first), eco_notes (optional, one short sentence per mode) and summary (1-2 short spoken sentences).';
+  'Now give your final answer as JSON: place_id (the place you planned for), recommendation (one mode from the options), order (all option modes, best first), eco_notes (optional, one short sentence per mode) and summary (1-2 short spoken sentences, beginning with "From <starting point>, ").';
 
 export const FINAL_SCHEMA = {
   type: 'object',
@@ -173,12 +176,18 @@ const onlyKnownNumbers = (s: string, allowed: Set<number>) => [...numbersIn(s)].
 type Decision = Pick<GeminiAnswer, 'recommendation' | 'order' | 'summary' | 'eco_notes'>;
 
 /** Gemini's decision applied to options computed in code; its text checked against `allowed` numbers. */
-function decisionResponse(place: Place, options: PlanOption[], d: Decision, allowed: Set<number>, base: { origin: Origin['kind']; attribution: string[]; cached: boolean }): PlanResponse {
+/** Gemini is asked to begin with "From <start>, ". If it didn't, say the start first rather than rewriting its sentence. */
+function withStart(summary: string, start: string): string {
+  return summary.toLowerCase().startsWith(`from ${start.toLowerCase()}`) ? summary : `Starting from ${start}. ${summary}`;
+}
+
+function decisionResponse(place: Place, options: PlanOption[], d: Decision, allowed: Set<number>, base: { origin: Origin; attribution: string[]; cached: boolean }): PlanResponse {
   let summary = clean(d.summary);
   if (!summary || summary.length > P.SUMMARY_MAX_CHARS || !onlyKnownNumbers(summary, allowed)) {
     log.info('plan: Gemini summary failed the checks (length or an unknown number); using the computed summary');
-    summary = computedSummary(place.display_name, options, d.recommendation);
+    summary = computedSummary(base.origin.name, place.display_name, options, d.recommendation);
   }
+  summary = withStart(summary, base.origin.name);
   const withNotes = options.map((o) => {
     const note = clean(d.eco_notes.get(o.mode) ?? '');
     return note && note.length <= P.ECO_NOTE_MAX_CHARS && onlyKnownNumbers(note, allowed) ? { ...o, eco_note: note } : o;
@@ -187,7 +196,8 @@ function decisionResponse(place: Place, options: PlanOption[], d: Decision, allo
     source: 'gemini',
     cached: base.cached,
     destination: { name: place.display_name, kind: place.kind },
-    origin: base.origin,
+    origin: base.origin.kind,
+    origin_name: base.origin.name,
     options: orderOptions(withNotes, d.recommendation, d.order),
     recommendation: d.recommendation,
     summary,
@@ -204,9 +214,12 @@ export async function plan(db: DB, userId: number, body: Record<string, unknown>
 
   const dest: DestinationInput | null = parseDestination(body.destination);
   if (!dest) return fail(400, 'validation_error', 'destination must be a non-empty string (max 200 chars) or { name, lat, lng }', 'Where would you like to go?');
-  const origin = resolveOrigin(db, userId, body);
-  if (origin === 'invalid') return fail(400, 'validation_error', 'origin_lat and origin_lng must both be valid numbers', 'I need a valid starting point.');
-  if (!origin) return fail(400, 'no_origin', 'No origin given and no saved home. Send origin_lat and origin_lng, or save a home location.', "I don't know where you're starting from. Save a home location or share your location in the app.");
+  const origin = await resolveOrigin(db, userId, body, Math.min(P.GEOCODE_TIMEOUT_MS, left() - P.FALLBACK_RESERVE_MS - 1_500));
+  if (origin === 'invalid') return fail(400, 'validation_error', 'origin_name must be a place name (1-120 chars), or origin_lat and origin_lng both valid numbers', 'Where are you starting from?');
+  if (origin === 'conflict') return fail(400, 'validation_error', 'Send one starting point: origin_name, or origin_lat and origin_lng, not both', 'Where are you starting from?');
+  if (origin === 'origin_not_found') return fail(404, 'origin_not_found', 'No place in Kitchener-Waterloo matches origin_name', "I couldn't find that starting point in Kitchener-Waterloo. Can you name another place nearby?");
+  if (origin === 'search_unavailable') return fail(503, 'search_unavailable', 'Place search is unavailable right now', "I can't look up places right now. Can you name a saved place, like home?");
+  if (!origin) return fail(400, 'no_origin', 'No starting point: send origin_name or origin_lat and origin_lng, or save a home location.', 'Where are you starting from?');
 
   const livePromise = liveData(Math.min(3_000, left() - P.FALLBACK_RESERVE_MS));
   const book = new PlaceBook();
@@ -224,7 +237,7 @@ export async function plan(db: DB, userId: number, body: Record<string, unknown>
     if (options.some((o) => o.mode === hit.recommendation)) {
       const allowed = numbersIn(JSON.stringify(options.map(optionJson)) + ' ' + place.safe_name + ' ' + (typeof dest === 'string' ? dest : dest.name));
       const d: Decision = { recommendation: hit.recommendation, order: hit.order, summary: hit.summary, eco_notes: new Map(hit.eco_notes) };
-      return decisionResponse(place, options, d, allowed, { origin: origin.kind, attribution: attributionFor(hit.usedSearch), cached: true });
+      return decisionResponse(place, options, d, allowed, { origin, attribution: attributionFor(hit.usedSearch), cached: true });
     }
     // The recommended mode is no longer offered (e.g. no bus now): plan afresh.
   }
@@ -250,9 +263,10 @@ export async function plan(db: DB, userId: number, body: Record<string, unknown>
       cached: false,
       destination: { name: place.display_name, kind: place.kind },
       origin: origin.kind,
+      origin_name: origin.name,
       options: orderOptions(options, rec),
       recommendation: rec,
-      summary: computedSummary(place.display_name, options, rec),
+      summary: computedSummary(origin.name, place.display_name, options, rec),
       attribution,
     };
   };
@@ -267,7 +281,8 @@ export async function plan(db: DB, userId: number, body: Record<string, unknown>
 
   const first = candidates[0]!;
   const destText = first.kind === 'search' || first.kind === 'merchant' ? String(dest) : first.safe_name;
-  const request = `Plan my trip. Destination: ${destText}. I'm starting from ${origin.kind === 'home' ? 'home' : 'my current location'}.`;
+  // Only the starting point's name (never coordinates) goes to Gemini.
+  const request = `Plan my trip. Destination: ${destText}. I'm starting from ${origin.name}. Begin the summary with exactly "From ${origin.name}, ".`;
   const allowed = new Set<number>();
   log.info(`plan: destination and live data ready after ${Date.now() - started} ms`);
   try {
@@ -280,7 +295,7 @@ export async function plan(db: DB, userId: number, body: Record<string, unknown>
     const options = optionsFor(ctx, place);
     if (!options.some((o) => o.mode === answer.recommendation)) throw new Error('recommendation is not one of the options');
 
-    const response = decisionResponse(place, options, answer, allowed, { origin: origin.kind, attribution, cached: false });
+    const response = decisionResponse(place, options, answer, allowed, { origin, attribution, cached: false });
     const { id: _id, ...placeData } = place;
     putCachedPlan(cacheKey, {
       place: placeData,

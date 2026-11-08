@@ -146,7 +146,7 @@ Other `ok: false` codes:
 - `already_redeemed_today`
 
 ### `plan_trip`
-- **Description:** Plans a green trip to a place in Kitchener-Waterloo by walking, biking or GRT transit, with times, points and the next bus. Use it whenever the user asks how to get somewhere.
+- **Description:** Plans a green trip to a place in Kitchener-Waterloo by walking, biking or GRT transit, with times, points and the next bus, from the user's saved home or from a starting place they name. Use it whenever the user asks how to get somewhere.
 - **Method:** POST
 - **URL:** `BASE/api/agent/plan`
 - **Body parameters:**
@@ -154,16 +154,19 @@ Other `ok: false` codes:
   | Name | Type | Required | Description |
   |---|---|---|---|
   | `destination` | string | yes | Where the user wants to go, as they said it, e.g. "Waterloo Public Library", "home" or "campus". |
+  | `origin_name` | string | no | Where the user is starting from, as they said it (a place name or landmark, e.g. "University of Waterloo"). Leave it out to use their saved home. |
 
-  The trip starts from the user's saved home. The app can also send `origin_lat` and `origin_lng` (numbers), but the voice agent normally leaves them out.
+  Without `origin_name`, the trip starts from the user's saved home. The response always says where it starts: `origin` is `home`, `named` or `given`, `origin_name` is the starting point in words ("your saved home", "University of Waterloo"), and the `summary` begins with it. The app can also send `origin_lat` and `origin_lng` (numbers, said as "your current location"), but the voice agent leaves them out, and they can't be combined with `origin_name`.
 
 Example response (shortened; the full shape is `POST /api/plan` in `docs/api.md`):
 ```json
 {
   "ok": true,
   "source": "gemini",
-  "summary": "Biking gets you there in about 11 minutes and earns about 17 points.",
+  "summary": "From your saved home, biking gets you there in about 11 minutes and earns about 17 points.",
   "recommendation": "bike",
+  "origin": "home",
+  "origin_name": "your saved home",
   "destination": { "name": "Waterloo Public Library, Albert Street, Waterloo", "kind": "search" },
   "options": [
     { "mode": "bike", "minutes": 11, "km": 2.8, "points_estimate": 17, "next_bus": null, "steps": ["Ride south-east about 2.8 km to Waterloo Public Library, Albert Street, Waterloo."] },
@@ -174,8 +177,9 @@ Example response (shortened; the full shape is `POST /api/plan` in `docs/api.md`
 
 `ok: false` codes, each with a spoken `summary`:
 - `destination_not_found`
+- `origin_not_found`: `origin_name` matched no place in Kitchener-Waterloo; the summary asks for another place nearby
 - `search_unavailable`
-- `no_origin`
+- `no_origin`: no `origin_name` and no saved home; the summary is "Where are you starting from?"
 - `too_far`
 - `rate_limited`
 

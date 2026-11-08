@@ -654,7 +654,7 @@ Plans a green trip to a destination: walk, bike and direct GRT transit options, 
 - **Points estimates** use the real scoring formula: `points_km × mode rate × 1.0 confidence × your trust`, rounded, then limited by what's left of today's 200 cap (`points_capped: true`).
   - For transit, `points_km` is the ride only, because a transit trip must start and end near a stop. **Tell the user to start the transit trip at the stop.**
 - **If Gemini fails, is slow or is over its limits,** the answer is computed entirely on the server (`source: "computed"`). It has the same options, a rule-based recommendation and a template summary. The whole request takes at most about 8 s.
-- **Privacy:** the origin stays on the server. Gemini sees only place ids, public place names, GRT stop names and the computed numbers. A saved location is described as "your home" or "your saved place", never by its label. Only the destination text is sent to Nominatim (the OpenStreetMap search).
+- **Privacy:** the origin stays on the server. Gemini sees only place ids, public place names, GRT stop names and the computed numbers. A saved location is described as "your home", "your saved home" or "your saved place", never by its label. The starting point reaches Gemini only as a name (`origin_name`), never as coordinates. Only the destination and `origin_name` texts are sent to Nominatim (the OpenStreetMap search).
 
 - **Destination choice:** place-search results are ranked by how many of the requested words their name contains, ties broken by distance. So "Waterloo Public Library" picks Waterloo's library even when the search lists Kitchener's first. The computed answer uses the top result; Gemini sees them in that order.
 - **Cache:** for 5 minutes, the same user asking for the same destination from about the same place (within about 100 m) reuses Gemini's earlier choice and summary, with no Gemini call (`cached: true`). **The numbers are always recomputed** (next bus, minutes, points). A summary whose numbers no longer match is replaced by the computed one. Computed answers aren't cached. The cache is in memory only.
@@ -665,13 +665,17 @@ Plans a green trip to a destination: walk, bike and direct GRT transit options, 
 
 Request:
 ```json
-{ "destination": "Waterloo Public Library", "origin_lat": 43.4723, "origin_lng": -80.5449 }
+{ "destination": "Waterloo Public Library", "origin_name": "University of Waterloo" }
 ```
 
 - `destination`, required, is one of:
   - **a string** (max 200 characters). It's matched first against your saved locations (`"home"`, or a label like `"campus"`), then the demo merchants, then a place search limited to Kitchener-Waterloo. Cambridge, Guelph and anything else outside KW aren't found (`404 destination_not_found`). Common places, and ION stations and the Kitchener GO station from the GRT stops data, are pre-loaded by `npm run geocode:warm`;
   - **or a place** `{ "name": "...", "lat": 43.46, "lng": -80.52 }`, for example from a map tap.
-- `origin_lat` and `origin_lng` are optional, and must be sent together. Without them, the origin is your saved home.
+- **The starting point** is one of these, never both kinds together (that's a `400`):
+  - `origin_name` (optional): a place name, resolved like `destination` (saved places, demo merchants, the warmed cache, then the KW place search);
+  - or `origin_lat` and `origin_lng` (optional, sent together).
+
+  Without either, the start is your saved home.
 
 Response `200`:
 ```json
@@ -680,6 +684,7 @@ Response `200`:
   "cached": false,
   "destination": { "name": "Waterloo Public Library, Albert Street, Waterloo", "kind": "search" },
   "origin": "home",
+  "origin_name": "your saved home",
   "options": [
     {
       "mode": "bike",
@@ -719,7 +724,7 @@ Response `200`:
     { "mode": "walk", "minutes": 34, "km": 2.9, "points_km": 2.9, "points_estimate": 29, "points_capped": false, "eco_note": "…", "steps": ["…"], "next_bus": null }
   ],
   "recommendation": "bike",
-  "summary": "Biking gets you there in about 11 minutes and earns about 17 points.",
+  "summary": "From your saved home, biking gets you there in about 11 minutes and earns about 17 points.",
   "attribution": ["Transit data: Grand River Transit, Region of Waterloo Open Data", "Search: © OpenStreetMap contributors (Nominatim)"]
 }
 ```
@@ -731,7 +736,9 @@ Response `200`:
   - only walking under 0.4 km.
 - `cached`: `true` when Gemini's decision came from the 5-minute cache.
 - `destination.kind`: `saved` | `merchant` | `search` | `given`.
-- `origin`: `home` | `given`.
+- `origin`: `home` | `named` (from `origin_name`) | `given` (from coordinates).
+- `origin_name`: the starting point in words: `"your saved home"`, `"your current location"`, a place name (like `"University of Waterloo"`), or `"your saved place"` for a saved label. **Never coordinates.**
+- **`summary` always begins with the starting point:** "From your saved home, …". If Gemini leaves it out, the server puts "Starting from … ." in front.
 - `recommendation` is `null` only if `options` is empty.
 - **Show `attribution`.** The OpenStreetMap line is there when the place search was used.
 
@@ -739,8 +746,9 @@ Errors:
 
 | Status | `code` | When |
 |---|---|---|
-| 400 | `validation_error` | Bad `destination`, or only one of `origin_lat` and `origin_lng` |
-| 400 | `no_origin` | No origin given and no saved home |
+| 400 | `validation_error` | Bad `destination` or `origin_name`; only one of `origin_lat` and `origin_lng`; or `origin_name` together with coordinates |
+| 400 | `no_origin` | No starting point given and no saved home |
+| 404 | `origin_not_found` | `origin_name` matches nothing in Kitchener-Waterloo |
 | 400 | `too_far` | Destination more than 40 km away |
 | 404 | `destination_not_found` | Nothing in Kitchener-Waterloo matches |
 | 503 | `search_unavailable` | The place search is down or too slow (saved places and merchants still work) |

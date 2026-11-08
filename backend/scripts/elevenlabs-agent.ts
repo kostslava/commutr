@@ -239,8 +239,9 @@ async function verify() {
   row('get_rewards      GET  /api/agent/rewards', r.status === 200 && r.json?.ok === true, `${r.status} ${say(r.json)}`);
   r = await call('POST', '/api/agent/redeem', { reward_id: 1 });
   row('redeem_reward    POST /api/agent/redeem (no confirm)', r.status === 200 && r.json?.code === 'confirm_required', `${r.status} ${say(r.json)}`);
-  r = await call('POST', '/api/agent/plan', { destination: 'Waterloo Park' });
-  row('plan_trip        POST /api/agent/plan', r.status === 200 && r.json?.ok === true, `${r.status} source=${r.json?.source} ${say(r.json)}`);
+  r = await call('POST', '/api/agent/plan', { destination: 'Waterloo Park', origin_name: 'University of Waterloo' });
+  const startsThere = r.json?.origin === 'named' && /University of Waterloo/i.test(r.json?.origin_name ?? '') && /^(From|Starting from) University of Waterloo/i.test(r.json?.summary ?? '');
+  row('plan_trip        POST /api/agent/plan (origin_name)', r.status === 200 && r.json?.ok === true && startsThere, `${r.status} source=${r.json?.source} origin=${r.json?.origin} origin_name=${r.json?.origin_name} ${say(r.json)}`);
   r = await call('POST', '/api/agent/trips/start', { mode: 'not-a-mode' });
   row('start_trip       POST /api/agent/trips/start (bad mode)', r.status === 400, `${r.status} ${say(r.json)}`);
   const trips = await call('GET', '/api/trips?limit=1', undefined, false);

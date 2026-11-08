@@ -14,7 +14,8 @@ export type Mode = 'normal' | 'slow' | 'error' | 'quota';
 export type GeminiRequest = { model: string; kind: 'chat' | 'transcribe' | 'tts' | 'plan'; body: any; raw: string };
 
 /** How the fake Gemini answers the planner's final structured-output call. */
-export type PlannerAnswer = 'good' | 'invalid' | 'invented_number' | 'unknown_place';
+/** no_start: a good answer whose summary ignores the "Begin the summary with" instruction. */
+export type PlannerAnswer = 'good' | 'invalid' | 'invented_number' | 'unknown_place' | 'no_start';
 
 export type MockState = {
   gemini: Mode;
@@ -111,10 +112,14 @@ function plannerReply(body: any, answer: PlannerAnswer): any {
     const options: any[] = route?.options ?? [];
     const best = options.find((o) => o.mode === 'transit') ?? options[0];
     const placeId = answer === 'unknown_place' ? 'place_99' : places?.places?.[0]?.place_id;
+    // Follow the request's "Begin the summary with exactly "From X, "" like a real model would.
+    const firstText: string = (contents[0]?.parts ?? []).map((p: any) => p.text ?? '').join(' ');
+    const start = answer === 'no_start' ? '' : (firstText.match(/Begin the summary with exactly "(From [^"]*?), "/)?.[1] ?? '');
+    const prefix = start ? `${start}, ` : '';
     const summary =
       answer === 'invented_number'
-        ? `Take the bus, it earns about 9999 points.`
-        : `Mock plan: ${best?.mode} takes about ${best?.minutes} minutes and earns about ${best?.points_estimate} points.`;
+        ? `${prefix}take the bus, it earns about 9999 points.`
+        : `${prefix}Mock plan: ${best?.mode} takes about ${best?.minutes} minutes and earns about ${best?.points_estimate} points.`;
     const out = {
       place_id: placeId,
       recommendation: answer === 'invalid' ? 'car' : best?.mode,
@@ -263,6 +268,8 @@ export async function startMockProviders(port: number): Promise<Mock> {
       if (/^waterloo public library$/i.test(q)) {
         return send(200, [hit('Kitchener Public Library', 43.47, -80.53, 'Queen Street North', 'Kitchener'), hit('Waterloo Public Library', 43.456, -80.5, 'Albert Street', 'Waterloo')]);
       }
+      // A starting point near user 1's home (for origin_name).
+      if (/^test campus$/i.test(q)) return send(200, [hit('Test Campus', 43.4745, -80.54, 'Campus Road', 'Waterloo')]);
       // Outside the KW area (Guelph): must never be used or cached.
       if (/^outside place$/i.test(q)) return send(200, [hit('Outside Place', 43.55, -80.25, 'Gordon Street', 'Guelph')]);
       // Equal names: the nearer one must win; the far one is listed first.

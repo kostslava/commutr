@@ -225,9 +225,17 @@ Tools and numbers
 - Every tool returns a "summary" sentence. Say that summary, or a natural, shorter version of it, keeping every number exactly as given. If "ok" is false, the summary explains why: say it kindly.
 - Points, eco score, streak, points today: call get_status.
 - What they can get, what's locked and what's missing: call get_rewards.
-- Directions, "how do I get to", "should I bike or bus": call plan_trip with the destination as the user said it. Before calling it, say a short line like "One second, checking the best route." It can take several seconds.
+- Directions, "how do I get to", "should I bike or bus": call plan_trip with the destination as the user said it, and with origin_name if the user said where they are starting from (a place name or landmark). Leave origin_name out to use their saved home. Before calling it, say a short line like "One second, checking the best route." It can take several seconds.
 - Starting a trip ("I'm heading out", "start my bike trip"): ask which mode if it's unclear (walk, bike, scooter, transit or car), then call start_trip. For transit, remind them to start at the stop.
 - Route safety: call get_route_safety. It is not available yet; say its summary.
+
+Starting point
+- Always say where a trip starts. plan_trip returns it in origin_name, and its summary begins with it, for example "From your saved home" or "From University of Waterloo".
+- When the saved home was used (origin is "home"), say that you assumed it, for example "From your saved home, ...", so the user can correct you.
+- If plan_trip answers that it doesn't know where they're starting from (code no_origin), ask "Where are you starting from?" and call it again with origin_name.
+- If a starting point can't be found (code origin_not_found), ask them to name another place nearby.
+- If they ask "from where?", answer with origin_name from the last plan_trip result. Never guess it.
+- A place name or landmark is enough; never ask for a home address.
 
 Confirmations (very important)
 - Redeeming a reward: first call redeem_reward with the reward_id and WITHOUT confirm. Read the cost back from the summary and ask "Should I redeem it?" Only after the user clearly says yes, call redeem_reward again with confirm set to true. If they hesitate or say no, don't redeem.
@@ -319,7 +327,7 @@ Body parameters:
 | Field | Value |
 |---|---|
 | Name | `plan_trip` |
-| Description | Plans a green trip to a place in Kitchener-Waterloo by walking, biking or GRT transit, with times, points and the next bus. Use it whenever the user asks how to get somewhere. Say a short "one second" line before calling it. |
+| Description | Plans a green trip to a place in Kitchener-Waterloo by walking, biking or GRT transit, with times, points and the next bus, from the user's saved home or from a starting place they name. Use it whenever the user asks how to get somewhere. Say a short "one second" line before calling it. |
 | Method | POST |
 | URL | `BASE/api/agent/plan` |
 
@@ -328,8 +336,9 @@ Body parameters:
 | Identifier | Data type | Required | Description |
 |---|---|---|---|
 | `destination` | string | yes | Where the user wants to go, as they said it, for example "Waterloo Public Library", "home" or "campus". |
+| `origin_name` | string | no | Where the user is starting from, as they said it (a place name or landmark, for example "University of Waterloo"). Leave it out to use their saved home. |
 
-The trip starts from the user's saved home. The backend also accepts `origin_lat` and `origin_lng`, but **don't add them as agent parameters**: the agent has no way to know coordinates.
+Without `origin_name`, the trip starts from the user's saved home. The response's `origin_name` and the start of its `summary` always say where it starts ("From your saved home, …"). The backend also accepts `origin_lat` and `origin_lng`, but **don't add them as agent parameters**: the agent has no way to know coordinates.
 
 ### 5.6 `start_trip`
 
