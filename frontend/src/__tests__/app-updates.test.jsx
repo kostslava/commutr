@@ -1,0 +1,8 @@
+import {describe,it,expect,vi} from 'vitest';
+import {startAppUpdates} from '../appUpdates';
+function harness(){const host=new EventTarget();Object.assign(host,{document:document.implementation.createHTMLDocument(),location:{reload:vi.fn()},setInterval:vi.fn()});host.top=host;let options;startAppUpdates(host,value=>{options=value});return {host,get options(){return options}}}
+describe('app version updates',()=>{
+ it('registers only in the outer page',()=>{const register=vi.fn();startAppUpdates({top:{}},register);expect(register).not.toHaveBeenCalled()});
+ it('replaces the outer page once when a new version activates',()=>{const h=harness();h.options.onNeedReload();expect(h.host.location.reload).toHaveBeenCalledOnce();h.host.dispatchEvent(new Event('commutr:idle'));expect(h.host.location.reload).toHaveBeenCalledOnce()});
+ it('waits for a phone iframe call or GPS recording to end before replacing it',()=>{const h=harness();const iframe=h.host.document.createElement('iframe');iframe.title='Commutr phone preview';h.host.document.body.append(iframe);const phone=document.implementation.createHTMLDocument();Object.defineProperty(iframe,'contentDocument',{value:phone});phone.documentElement.dataset.mutaCall='active';h.options.onNeedReload();expect(h.host.location.reload).not.toHaveBeenCalled();phone.documentElement.dataset.mutaCall='';phone.documentElement.dataset.tripRecording='active';h.host.dispatchEvent(new Event('commutr:idle'));expect(h.host.location.reload).not.toHaveBeenCalled();phone.documentElement.dataset.tripRecording='';h.host.dispatchEvent(new Event('commutr:idle'));expect(h.host.location.reload).toHaveBeenCalledOnce()});
+});

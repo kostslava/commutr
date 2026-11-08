@@ -12,6 +12,7 @@ export default function Companion({execute,context}){
  const session=useRef(null),generation=useRef(0),starting=useRef(false),request=useRef(null),mounted=useRef(true),launcher=useRef(),panel=useRef(),textInput=useRef(),scroll=useRef(),latest=useRef({execute,context}),seen=useRef(new Set());
  latest.current={execute,context};
  const live=status==='connected'||status==='connecting',state=thinking?'thinking':live?phase:'idle';
+ useEffect(()=>{document.documentElement.dataset.mutaCall=live?'active':'';if(!live)window.top.dispatchEvent(new Event('commutr:idle'));return()=>{delete document.documentElement.dataset.mutaCall}},[live]);
  const append=(role,text,extra={})=>setMessages(m=>[...m,{id:crypto.randomUUID(),role,text,...extra}].slice(-12));
  function resetText(){request.current?.abort();generation.current++;setMessages([]);setInput('');setError('');setThinking(false)}
  function hide(){setOpen(false);if(!live){resetText();setView('choose')}setTimeout(()=>launcher.current?.focus(),0)}
@@ -49,7 +50,7 @@ export default function Companion({execute,context}){
  <div className="companion-backdrop" aria-hidden="true" onClick={hide}/>
  <section ref={panel} tabIndex={-1} className={`companion-panel companion-${view}`} role="dialog" aria-label="Muta">
  <button className="companion-close" aria-label={live?'Minimize call':'Close Muta'} onClick={hide}><X size={21}/></button>
- <div className="companion-stage"><Mascot state={state}/></div><div className="muta-wordmark" role="img" aria-label="Muta"><svg viewBox="155 0 252 122" aria-hidden="true"><image href="/mockup-logo.png" width="530" height="122"/></svg><span aria-hidden="true">ta</span></div>
+ <div className="companion-stage"><Mascot state={state}/></div><div className="muta-wordmark" role="img" aria-label="Muta"><svg viewBox="155 0 252 122" aria-hidden="true"><defs><clipPath id="muta-mark-crop"><path d="M165 0H407V122H155V87H165Z"/></clipPath></defs><image href="/mockup-logo.png" width="530" height="122" clipPath="url(#muta-mark-crop)"/></svg><span aria-hidden="true">ta</span></div>
  {view==='choose'?<div className="companion-choices"><button onClick={()=>{setMessages([]);setError('');setView('text')}}><Keyboard size={20}/>Let’s type</button><button onClick={startVoice}><Mic size={20}/>Let’s talk</button></div>:<>
  {view==='text'&&<div className="companion-paper">
  <div className="companion-conversation" role="log" aria-label="Conversation" aria-live="polite">{!messages.length&&<p className="companion-empty">Where do you feel like going?</p>}{messages.map(m=><div className={`companion-message ${m.role}`} key={m.id}><p>{m.text}</p></div>)}{thinking&&<p className="companion-thinking" role="status">Thinking…</p>}<div ref={scroll}/></div>
