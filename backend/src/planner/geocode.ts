@@ -142,3 +142,9 @@ export function pruneOutsideArea(): number {
 }
 
 export const cachedKeys = () => Object.keys(cache);
+
+/** True when `key` has an unexpired cache entry. */
+export function hasFreshCache(key: string): boolean {
+  const e = cache[normalise(key)];
+  return !!e && expiresAt(e) > Date.now();
+}

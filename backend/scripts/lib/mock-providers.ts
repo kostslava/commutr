@@ -28,6 +28,8 @@ export type MockState = {
   planner: PlannerAnswer;
   nominatim: Mode;
   tripUpdates: 'normal' | 'error';
+  /** Hold the static GTFS download this long (to test that /health answers before GTFS is ready). */
+  staticDelayMs: number;
 };
 
 export type Mock = {
@@ -205,6 +207,7 @@ export async function startMockProviders(port: number): Promise<Mock> {
     planner: 'good',
     nominatim: 'normal',
     tripUpdates: 'normal',
+    staticDelayMs: 0,
   };
   const gemini: GeminiRequest[] = [];
   const eleven: { voice: string; text: string }[] = [];
@@ -283,7 +286,10 @@ export async function startMockProviders(port: number): Promise<Mock> {
     }
 
     // --- GRT feeds
-    if (req.url === '/grt/staticfeeds/1') return send(200, staticZip(), 'application/zip');
+    if (req.url === '/grt/staticfeeds/1') {
+      if (state.staticDelayMs) await sleep(state.staticDelayMs);
+      return send(200, staticZip(), 'application/zip');
+    }
     if (req.url === '/grt/vehiclepositions/1') return send(200, vehiclesFeed(), 'application/octet-stream');
     if (req.url === '/grt/tripupdates/1') {
       if (state.tripUpdates === 'error') return send(500, { error: 'mock trip updates down' });
