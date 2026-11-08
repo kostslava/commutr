@@ -13,6 +13,7 @@ import { locationRoutes } from './routes/locations.js';
 import { meRoutes } from './routes/me.js';
 import { planRoutes } from './routes/plan.js';
 import { rewardRoutes } from './routes/rewards.js';
+import { safetyRoutes } from './routes/safety.js';
 import { ALLOW_BACKDATED, tripRoutes } from './routes/trips.js';
 import { transitRoutes } from './routes/transit.js';
 import { bootInBackground } from './boot.js';
@@ -70,6 +71,7 @@ api.route('/', clubRoutes(db));
 api.route('/', locationRoutes(db));
 api.route('/', chatRoutes(db));
 api.route('/', companionRoutes(db));
+api.route('/', safetyRoutes(db));
 api.route('/', planRoutes(db));
 app.route('/api', api);
 

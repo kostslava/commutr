@@ -19,7 +19,7 @@ Configured on the agent by `npm run companion:setup` (`backend/scripts/companion
 | `start_trip` | `mode`: `walk` \| `bike` \| `scooter` \| `transit` \| `car` (required) | Starts the app's foreground GPS tracker (asks for location permission). Refuses if a trip is already active. | `POST /api/trips`, then `POST /api/trips/:id/points` |
 | `finish_trip` | — | Uploads any pending GPS points, then finishes and scores the trip | `POST /api/trips/:id/points`, `POST /api/trips/:id/finish` |
 | `redeem_reward` | `reward_id` (integer, required) | Re-reads the catalogue, refuses if the reward is missing, locked, unaffordable or already redeemed today, otherwise redeems and opens the Wallet | `GET /api/rewards`, `POST /api/rewards/:id/redeem` |
-| `get_route_safety` | `destination` | Returns a fixed "not available yet" answer in the browser | — |
+| `get_route_safety` | `destination` | **Today:** returns a fixed "not available yet" answer in the browser. **Backend ready, frontend wiring pending:** call the endpoint and return its JSON to the agent; when `available` is true, show the rating with its `note` and `attribution` (Mapillary, CC BY-SA 4.0) | `POST /api/companion/route-safety` (once wired) |
 
 - **No spoken confirmation step.** Unlike the legacy webhook tools, `redeem_reward` and `finish_trip` have **no `confirm` parameter**, and the app runs them directly on an explicit request. Muta's prompt (`MUTA_VOICE_PROMPT` in `backend/src/chat/muta.ts`) tells it to redeem only on an explicit request with a real `reward_id`, and to ask one short question if anything is unclear.
 - **User:** every call acts as demo user 1 (`X-Demo-User: 1` in `frontend/src/api.js`). The `demo_user` dynamic variable has no effect here.

@@ -5,6 +5,8 @@ Owned by the backend (Shahmeer). The frontend agent must not edit this file. If 
 **Status: every endpoint is built.** Shapes of built endpoints only change after an announcement.
 
 > **Changed (2026-11-07):** added the five [Muta companion endpoints](#muta-companion-the-in-app-assistant) (`/api/companion/*`, added with the Muta PR #14). Corrected the transit rate to **12 points per km** (the code has used 12 since PR #14; this file said 3). The `/api/agent/*` webhook endpoints are now **legacy**: still built, but the frontend doesn't use them.
+>
+> **Changed (2026-11-08):** added [`POST /api/companion/route-safety`](#post-apicompanionroute-safety--street-photo-safety-rating-for-a-demo-route--built): Gemini street-photo safety ratings for 4 precomputed demo routes (Mapillary imagery, CC BY-SA 4.0).
 
 ## Basics
 
@@ -773,6 +775,7 @@ Muta is the mascot in the app, in text and in live voice. These endpoints are un
 | `POST /api/companion/plan` | plan (shared with `/api/plan`, `/api/agent/plan`) | 3 a minute, 30 a day |
 | `POST /api/companion/discover` | plan (the **same** bucket as planning) | 3 a minute, 30 a day |
 | `GET /api/companion/account` | none | — |
+| `POST /api/companion/route-safety` | safety | 20 a minute, 200 a day (429 includes `retry_after_sec`) |
 
 Over a limit returns `429 rate_limited`. **Known quirk:** unlike `/api/chat` and `/api/plan`, these 429 responses have **no** `retry_after_sec`.
 
@@ -916,6 +919,73 @@ Response `200`:
 
 Errors: `400 validation_error` · `429 rate_limited`.
 
+### `POST /api/companion/route-safety` — street-photo safety rating for a demo route — **built**
+
+Gemini rated a few **precomputed demo routes** from Mapillary street-level photos, once, with `npm run safety:generate`. The ratings are saved in `backend/src/safety/ratings.json`, so this endpoint only reads that file. It never calls Gemini or Mapillary, and answers instantly. Any other route gets an honest "no data" answer.
+
+Rated routes (walking paths), matched in either direction:
+
+| `route.id` | From | To |
+|---|---|---|
+| `builders-central-station` | Builders Club (user 1's saved home) | Central Station |
+| `builders-victoria-park` | Builders Club | Victoria Park |
+| `waterloo-park-public-square` | Waterloo Park | Waterloo Public Square Station |
+| `uw-public-square` | University of Waterloo | Waterloo Public Square Station |
+
+Request:
+```json
+{ "destination": "Victoria Park", "origin": "Builders Club" }
+```
+
+- `destination`: required, a place name (1–200 characters) or `{ "lat", "lng" }`.
+- `origin`: optional, the same forms. Leave it out, or send `"home"`, to use the user's saved home.
+- **Matching:** coordinates match an endpoint within **400 m**. Names match an endpoint's name or alias (case-insensitive, for example `"UW"`, `"Public Square"`), or a longer name that contains it (`"Victoria Park, Kitchener"`). No place search runs, so names outside this list don't match.
+
+Response `200`, rated route:
+```json
+{
+  "available": true,
+  "route": { "id": "builders-victoria-park", "from": "Builders Club", "to": "Victoria Park", "km": 0.73 },
+  "rating": {
+    "overall": "good",
+    "score": 4,
+    "summary": "One or two plain sentences, written to be read aloud.",
+    "factors": {
+      "lighting":  { "rating": "good", "note": "…" },
+      "sidewalks": { "rating": "good", "note": "…" },
+      "traffic":   { "rating": "fair", "note": "…" },
+      "crossings": { "rating": "good", "note": "…" }
+    },
+    "confidence": "high"
+  },
+  "summary": "Same as rating.summary.",
+  "photos": { "count": 6, "captured_from": "2019-10", "captured_to": "2023-09" },
+  "note": "Based on 6 street photos from 2019–2023, rated by Gemini. Conditions change; this isn't a safety guarantee.",
+  "attribution": ["Street imagery: Mapillary contributors, CC BY-SA 4.0 (mapillary.com)", "Photos by: <Mapillary usernames>"],
+  "generated_at": "2026-11-08T…Z"
+}
+```
+
+- `overall` is `good` | `fair` | `poor`; `score` is 1–5. Each factor's `rating` is `good` | `fair` | `poor` | `unknown` (`unknown` = not visible in the photos). `confidence` is `high` | `medium` | `low`. The generator lowers it when fewer than 4 photos were used, or when the newest photo is older than 2022.
+- **Show `attribution` and `note` whenever you show a rating.** Mapillary imagery is CC BY-SA 4.0. The photos aren't stored or sent; only the rating, the photo counts and dates, and the creators' names are.
+
+Response `200`, no data:
+```json
+{ "available": false, "code": "no_route_data", "summary": "I don't have street photo data for that route yet.", "rated_routes": [{ "from": "Builders Club", "to": "Central Station" }] }
+```
+
+- `code: "not_generated"` (with a `summary`) means the ratings file is missing or empty.
+
+Errors: `400 validation_error` (missing or bad `destination` or `origin`) · `400 no_origin` (no origin and no saved home) · `429 rate_limited` with `retry_after_sec`.
+
+**How the ratings were made** (`backend/scripts/route-safety-generate.ts`):
+1. One walking path per route from the public Valhalla server.
+2. Photo positions from Mapillary's coverage tiles.
+3. Up to 6 photos spread along the path: within 25 m, not panoramic, 2022 or later preferred, at most 2 from one Mapillary sequence.
+4. One Gemini call per route (`gemini-3.5-flash-lite`). The photos go in memory only, with a response schema; the answer is validated in code.
+
+The script needs `MAPILLARY_ACCESS_TOKEN` and `GEMINI_API_KEY` in `backend/.env`. The server doesn't. `--dry-run` prints the photo counts without lookups or Gemini, and `--only <route.id>` rates a single route.
+
 ---
 
 ## Live voice agent tools (legacy)
@@ -952,7 +1022,7 @@ The original live voice agent design ran its tools on our server: ElevenLabs' se
 - Abandoned trips: a trip left active (the app was closed mid-trip) stays active until it is finished, and blocks starting a new one (`409 trip_already_active` gives its id). Auto-finishing is not built yet.
 - Editing a saved location (`PATCH`). For now, delete it and add it again.
 - Claiming or issuing a club's group reward when the weekly goal is reached. `goal_reached` is shown, but nothing is issued.
-- Route safety ratings (Gemini rating routes from Mapillary photos). Coming in a later task; `POST /api/agent/route-safety` is a stub until then.
+- Route safety for routes other than the 4 precomputed demo routes. Those are rated (see [`POST /api/companion/route-safety`](#post-apicompanionroute-safety--street-photo-safety-rating-for-a-demo-route--built)); everything else answers "no street photo data". The legacy `POST /api/agent/route-safety` is still a stub.
 - Street-by-street routing. The planner uses straight-line distances with a detour factor, and direct transit routes only. (The frontend draws walk and bike route lines from the public Valhalla server, so the drawn line and the planner's minutes and km can differ.)
 - A place-search endpoint for the frontend. The planner searches on the server; the frontend may still call Nominatim directly for a map search box.
 

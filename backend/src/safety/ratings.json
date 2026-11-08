@@ -1,0 +1,273 @@
+{
+  "version": 1,
+  "routes": [
+    {
+      "id": "builders-central-station",
+      "from": {
+        "name": "Builders Club",
+        "lat": 43.450696,
+        "lng": -80.492268,
+        "aliases": [
+          "Builders",
+          "165 King St W"
+        ]
+      },
+      "to": {
+        "name": "Central Station",
+        "lat": 43.452969,
+        "lng": -80.498614,
+        "aliases": [
+          "Central Station Kitchener",
+          "Kitchener Central Station"
+        ]
+      },
+      "km": 0.58,
+      "rating": {
+        "overall": "good",
+        "score": 4,
+        "summary": "This urban route features wide sidewalks and clear bicycle infrastructure along moderately paced streets. Good visibility and crosswalks make walking and cycling comfortable.",
+        "factors": {
+          "lighting": {
+            "rating": "good",
+            "note": "Multiple overhead street lights and decorative string lights are visible along the corridor."
+          },
+          "sidewalks": {
+            "rating": "good",
+            "note": "Paved sidewalks are present on both sides of the street with good width and separation from traffic."
+          },
+          "traffic": {
+            "rating": "good",
+            "note": "The roadway is relatively narrow with one lane in each direction and marked green bicycle infrastructure."
+          },
+          "crossings": {
+            "rating": "good",
+            "note": "Intersection crossings are equipped with traffic signals and clear markings."
+          }
+        },
+        "confidence": "high"
+      },
+      "photos": {
+        "count": 6,
+        "sample_points_covered": 6,
+        "sample_points": 6,
+        "captured_from": "2023-09",
+        "captured_to": "2024-02",
+        "mapillary_image_ids": [
+          "216990261058630",
+          "744034877687354",
+          "704036398279150",
+          "1754363645010451",
+          "760132469202791",
+          "839681631030739"
+        ],
+        "creators": [
+          "privateacorn"
+        ]
+      },
+      "model": "gemini-3.5-flash-lite",
+      "generated_at": "2026-11-08T05:14:24.269Z"
+    },
+    {
+      "id": "builders-victoria-park",
+      "from": {
+        "name": "Builders Club",
+        "lat": 43.450696,
+        "lng": -80.492268,
+        "aliases": [
+          "Builders",
+          "165 King St W"
+        ]
+      },
+      "to": {
+        "name": "Victoria Park",
+        "lat": 43.4464,
+        "lng": -80.4936,
+        "aliases": [
+          "Victoria Park Kitchener"
+        ]
+      },
+      "km": 0.73,
+      "rating": {
+        "overall": "good",
+        "score": 4,
+        "summary": "This route features clear sidewalks and visible traffic controls making it generally comfortable for walking and cycling. Adequate street lighting infrastructure is present along the corridor.",
+        "factors": {
+          "lighting": {
+            "rating": "good",
+            "note": "Street light fixtures are mounted on utility poles along the route."
+          },
+          "sidewalks": {
+            "rating": "good",
+            "note": "Paved sidewalks are present alongside the roadway."
+          },
+          "traffic": {
+            "rating": "fair",
+            "note": "The road accommodates moderate traffic with parked cars on the side."
+          },
+          "crossings": {
+            "rating": "good",
+            "note": "Signalized intersections with pedestrian crossings are visible."
+          }
+        },
+        "confidence": "high"
+      },
+      "photos": {
+        "count": 6,
+        "sample_points_covered": 6,
+        "sample_points": 6,
+        "captured_from": "2019-10",
+        "captured_to": "2023-09",
+        "mapillary_image_ids": [
+          "216990261058630",
+          "643347591220460",
+          "993209418113838",
+          "598305021563340",
+          "306051491140939",
+          "250776433511039"
+        ],
+        "creators": [
+          "privateacorn",
+          "danbrotherston",
+          "cpleishman"
+        ]
+      },
+      "model": "gemini-3.5-flash-lite",
+      "generated_at": "2026-11-08T05:14:47.198Z"
+    },
+    {
+      "id": "waterloo-park-public-square",
+      "from": {
+        "name": "Waterloo Park",
+        "lat": 43.4668963,
+        "lng": -80.5324772,
+        "aliases": []
+      },
+      "to": {
+        "name": "Waterloo Public Square Station",
+        "lat": 43.464236,
+        "lng": -80.522467,
+        "aliases": [
+          "Waterloo Public Square",
+          "Public Square",
+          "Public Square Station",
+          "Uptown Waterloo"
+        ]
+      },
+      "km": 0.94,
+      "rating": {
+        "overall": "good",
+        "score": 4,
+        "summary": "This route mixes scenic paved multi-use paths with urban streetscapes featuring good sidewalks and crossings.",
+        "factors": {
+          "lighting": {
+            "rating": "good",
+            "note": "Modern pedestrian lights are visible along the paved multi-use trail sections."
+          },
+          "sidewalks": {
+            "rating": "good",
+            "note": "The route features wide, paved multi-use paths and standard concrete urban sidewalks."
+          },
+          "traffic": {
+            "rating": "fair",
+            "note": "Some road sections show moderate traffic with multi-lane layouts and visible construction zones."
+          },
+          "crossings": {
+            "rating": "good",
+            "note": "Signalized intersections and urban crosswalks are present where the route meets streets."
+          }
+        },
+        "confidence": "high"
+      },
+      "photos": {
+        "count": 5,
+        "sample_points_covered": 6,
+        "sample_points": 6,
+        "captured_from": "2016-03",
+        "captured_to": "2023-09",
+        "mapillary_image_ids": [
+          "973009210142808",
+          "1199754130437519",
+          "472643123967934",
+          "279997843833011",
+          "950624146013257"
+        ],
+        "creators": [
+          "dwtrueman",
+          "bootprint",
+          "privateacorn"
+        ]
+      },
+      "model": "gemini-3.5-flash-lite",
+      "generated_at": "2026-11-08T05:15:03.520Z"
+    },
+    {
+      "id": "uw-public-square",
+      "from": {
+        "name": "University of Waterloo",
+        "lat": 43.4701994,
+        "lng": -80.5452429,
+        "aliases": [
+          "UW",
+          "UWaterloo",
+          "Waterloo University"
+        ]
+      },
+      "to": {
+        "name": "Waterloo Public Square Station",
+        "lat": 43.464236,
+        "lng": -80.522467,
+        "aliases": [
+          "Waterloo Public Square",
+          "Public Square",
+          "Public Square Station",
+          "Uptown Waterloo"
+        ]
+      },
+      "km": 2.32,
+      "rating": {
+        "overall": "good",
+        "score": 4,
+        "summary": "This walking and cycling route features mostly dedicated multi-use paths and pedestrian zones with comfortable infrastructure. Some street segments have active traffic, but overall conditions are very favorable.",
+        "factors": {
+          "lighting": {
+            "rating": "good",
+            "note": "Dedicated light poles are visible along paved sections of the route."
+          },
+          "sidewalks": {
+            "rating": "good",
+            "note": "Paved multi-use paths and wide concrete sidewalks provide smooth separation from roads."
+          },
+          "traffic": {
+            "rating": "fair",
+            "note": "Urban streets with multiple lanes and transit vehicles are present near the end of the route."
+          },
+          "crossings": {
+            "rating": "good",
+            "note": "Signalized intersections and clear pedestrian environments are visible in the final segment."
+          }
+        },
+        "confidence": "high"
+      },
+      "photos": {
+        "count": 4,
+        "sample_points_covered": 4,
+        "sample_points": 6,
+        "captured_from": "2019-10",
+        "captured_to": "2023-09",
+        "mapillary_image_ids": [
+          "382740226397005",
+          "226466115593715",
+          "485920959351092",
+          "950624146013257"
+        ],
+        "creators": [
+          "arcycan",
+          "dwtrueman",
+          "privateacorn"
+        ]
+      },
+      "model": "gemini-3.5-flash-lite",
+      "generated_at": "2026-11-08T05:15:18.823Z"
+    }
+  ]
+}

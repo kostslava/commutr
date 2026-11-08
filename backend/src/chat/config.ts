@@ -85,6 +85,8 @@ export const USER_LIMITS = {
   voice: { perMinute: 4, perDay: 30 },
   /** Trip plans (POST /api/plan and /api/agent/plan share this). Each plan makes several Gemini calls. */
   plan: { perMinute: 3, perDay: 30 },
+  /** Route safety lookups (POST /api/companion/route-safety): a file read, no provider calls. */
+  safety: { perMinute: 20, perDay: 200 },
 };
 
 // --- Trip planner's share of the Gemini ceilings ----------------------------------
