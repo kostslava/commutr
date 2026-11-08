@@ -12,7 +12,7 @@ export function demoTransit(destination,origin){
  const place=places.find(p=>Math.abs(p.lat-destination?.lat)<.0001&&Math.abs(p.lng-destination?.lng)<.0001);
  if(!place||Math.abs(origin.lat-43.450696)>.002||Math.abs(origin.lng+80.492268)>.002)return null;
  const path=[[origin.lat,origin.lng],[43.4513,-80.4925],[place.lat,place.lng]];
- return {mode:'transit',minutes:place.minutes,km:place.km,points_estimate:Math.floor(place.km*3),demo:true,path,
+ return {mode:'transit',minutes:place.minutes,km:place.km,points_estimate:Math.round(place.km*12),demo:true,path,
   next_bus:{route:'Demo bus',minutes:3,source:'demo'},
   steps:['Walk to the downtown stop.','Demo bus departs in 3 minutes.',`Ride toward ${place.name}, then walk to your destination.`,'Illustrative route and timing for the demo; check GRT for actual service.']};
 }

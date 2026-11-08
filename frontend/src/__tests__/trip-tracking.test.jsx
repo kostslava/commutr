@@ -56,3 +56,12 @@ describe('foreground trip lifecycle',()=>{
   const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});await act(async()=>{await result.current.start('Bike')});await act(async()=>{await result.current.finish()});expect(result.current.trip.id).toBe(12);expect(result.current.recording).toBe(false);expect(result.current.error).toMatch(/Reconnect/);expect(api.mock.calls.some(([p])=>p.endsWith('/finish'))).toBe(false);
  });
 });
+it('starts a photo demo without requesting GPS and uploads multipart evidence',async()=>{
+ api.mockImplementation(async(path,body)=>path==='/trips'?(body?{id:30,mode:'transit',demo:true}:{trips:[]}):path.endsWith('/evidence')?{evidence_status:'submitted'}:{trip:{demo:true,points_awarded:11}});
+ const {result}=renderHook(()=>useTripTracker(vi.fn()));await act(async()=>{});
+ await act(async()=>{await result.current.start('Transit',{demo:true,destination:'Kitchener GO station'})});
+ expect(geo.watchPosition).not.toHaveBeenCalled();expect(geo.getCurrentPosition).not.toHaveBeenCalled();expect(result.current.trip.demo).toBe(true);
+ const photo=new File(['photo'],'ticket.png',{type:'image/png'});await act(async()=>{await result.current.uploadEvidence(photo)});
+ expect(api.mock.calls.find(([path])=>path.endsWith('/evidence'))[1].get('photo').name).toBe('ticket.png');expect(result.current.trip.evidence_status).toBe('submitted');
+ await act(async()=>{await result.current.finish()});expect(result.current.trip).toBe(null);
+});

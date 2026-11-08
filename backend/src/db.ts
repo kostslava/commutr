@@ -49,6 +49,13 @@ CREATE TABLE IF NOT EXISTS trip_points (
 );
 CREATE INDEX IF NOT EXISTS idx_trip_points_trip ON trip_points(trip_id, timestamp);
 
+CREATE TABLE IF NOT EXISTS trip_evidence (
+  trip_id INTEGER PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+  mime_type TEXT NOT NULL,
+  photo BLOB NOT NULL,
+  submitted_at TEXT NOT NULL DEFAULT ${NOW}
+);
+
 CREATE TABLE IF NOT EXISTS merchants (
   id       INTEGER PRIMARY KEY,
   name     TEXT NOT NULL,
@@ -135,6 +142,9 @@ export function openDb(path = process.env.DB_PATH ?? DEFAULT_DB_PATH): DB {
 type AddedColumn = string | { ddl: string; after: string };
 const ADDED_COLUMNS: Record<string, Record<string, AddedColumn>> = {
   trips: {
+    demo: 'INTEGER NOT NULL DEFAULT 0',
+    demo_destination: 'TEXT',
+    demo_distance: 'REAL',
     flags: "TEXT NOT NULL DEFAULT '[]'",
     eco_delta: 'INTEGER NOT NULL DEFAULT 0',
     trust_delta: 'REAL NOT NULL DEFAULT 0',

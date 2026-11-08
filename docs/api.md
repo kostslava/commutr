@@ -792,3 +792,11 @@ The mascot's live voice agent runs on ElevenLabs. ElevenLabs' servers call `/api
 - Route safety ratings (Gemini rating routes from Mapillary photos). Coming in a later task; `POST /api/agent/route-safety` is a stub until then.
 - Street-by-street routing. The planner uses straight-line distances with a detour factor, and direct transit routes only.
 - A place-search endpoint for the frontend. The planner searches on the server; the frontend may still call Nominatim directly for a map search box.
+
+### Trip photo evidence and rehearsals
+
+`POST /api/trips/:id/evidence` accepts multipart form field `photo` (JPG, PNG, WebP, up to 5 MB), while the trip is active. It replaces the trip's previous photo and returns `evidence_status: "submitted"`. Photos are stored in SQLite, are scoped to the current demo user, and are not sent to a third-party vision service. Submission is supporting evidence, not automatic proof of transport mode. Normal trips continue to use GPS scoring.
+
+For a no-GPS rehearsal, `POST /api/trips` accepts `demo: true` and `demo_destination` equal to one of the six map suggestions. The server chooses the fixed illustrative distance; the client cannot supply it. Demo trips require a photo before `/finish`, reject GPS sample submissions, and return `trip.demo: true`. Demo points use the configured mode rate and daily cap, with no changes to eco score, trust, streaks, or club steps. In production, rehearsal creation requires `DEMO_TRIPS_ENABLED=1`. A hand-drawn ticket is suitable for this explicitly labelled demonstration; it is not validated as a real fare ticket.
+
+Trip lists and details include `demo`, `demo_destination`, and `evidence_status`, so an active photo submission survives refresh. Existing databases receive additive columns and the evidence table on startup, without a reset.

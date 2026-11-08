@@ -5,6 +5,7 @@ import { finishTrip } from '../scoring/apply.js';
 import * as C from '../scoring/config.js';
 import type { Mode } from '../scoring/config.js';
 import { bad, idParam, isObj, jsonBody, notFound as notFoundOf } from './http.js';
+import {demoDistances,evidenceRoutes,finishDemoTrip} from './tripEvidence.js';
 
 // Test-only: lets POST /api/trips take a past `started_at`, so scripts can replay
 // realistic trips through the real endpoints. Refused in production (see index.ts).
@@ -20,15 +21,18 @@ type TripRow = {
   confidence: number | null;
   points_awarded: number | null;
   flags: string;
+  demo?: number;
+  evidence_submitted?: number;
 };
 
-const TRIP_COLUMNS = 'id, mode, status, started_at, ended_at, distance_km, confidence, points_awarded, flags';
-const tripJson = (t: TripRow) => ({ ...t, flags: JSON.parse(t.flags) as string[] });
+const TRIP_COLUMNS = 'id, mode, status, started_at, ended_at, distance_km, confidence, points_awarded, flags, demo, demo_destination, (SELECT COUNT(*) FROM trip_evidence WHERE trip_id=trips.id) AS evidence_submitted';
+const tripJson = (t: TripRow) => ({ ...t, demo:Boolean(t.demo),evidence_status:t.evidence_submitted?'submitted':'none',flags: JSON.parse(t.flags) as string[] });
 
 const notFound = (c: Parameters<typeof notFoundOf>[0], id: unknown) => notFoundOf(c, 'trip', id);
 
 export function tripRoutes(db: DB) {
   const r = new Hono<CurrentUserEnv>();
+  r.route('/',evidenceRoutes(db));
 
   // Start a trip. The user picks the mode first.
   r.post('/trips', async (c) => {
@@ -37,6 +41,12 @@ export function tripRoutes(db: DB) {
       return bad(c, `mode must be one of: ${C.MODES.join(', ')}`);
     }
     const userId = c.get('userId');
+    const demo=body.demo===true;
+    const distance=typeof body.demo_destination==='string'?demoDistances[body.demo_destination]:undefined;
+    if(demo){
+      if(process.env.NODE_ENV==='production'&&process.env.DEMO_TRIPS_ENABLED!=='1')return c.json({error:{code:'demo_disabled',message:'Demo trips are disabled on this server.'}},403);
+      if(!['walk','bike','transit'].includes(body.mode)||distance===undefined)return bad(c,'Choose a suggested destination and walk, bike, or transit for a demo trip.');
+    }
 
     let startedAt = new Date().toISOString();
     if (body.started_at !== undefined) {
@@ -51,8 +61,8 @@ export function tripRoutes(db: DB) {
       return c.json({ error: { code: 'trip_already_active', message: 'Finish the active trip first' }, active_trip_id: active.id }, 409);
     }
 
-    const { lastInsertRowid } = db.prepare("INSERT INTO trips (user_id, mode, status, started_at) VALUES (?, ?, 'active', ?)").run(userId, body.mode, startedAt);
-    return c.json({ id: Number(lastInsertRowid), mode: body.mode, status: 'active', started_at: startedAt }, 201);
+    const { lastInsertRowid } = db.prepare("INSERT INTO trips (user_id, mode, status, started_at, demo, demo_destination, demo_distance) VALUES (?, ?, 'active', ?, ?, ?, ?)").run(userId, body.mode, startedAt,demo?1:0,demo?body.demo_destination:null,demo?distance:null);
+    return c.json({ id: Number(lastInsertRowid), mode: body.mode, status: 'active', started_at: startedAt,demo,demo_destination:demo?body.demo_destination:null }, 201);
   });
 
   // Add a batch of GPS points. Malformed points fail the request (400); points
@@ -60,6 +70,8 @@ export function tripRoutes(db: DB) {
   r.post('/trips/:id/points', async (c) => {
     const tripId = idParam(c);
     if (tripId === null) return notFound(c, c.req.param('id'));
+    const demo=db.prepare('SELECT demo FROM trips WHERE id=? AND user_id=?').get(tripId,c.get('userId')) as {demo:number}|undefined;
+    if(demo?.demo)return bad(c,'Demo trips use photo evidence, not GPS samples.');
     const trip = db.prepare('SELECT status, started_at FROM trips WHERE id = ? AND user_id = ?').get(tripId, c.get('userId')) as
       | { status: string; started_at: string }
       | undefined;
@@ -104,6 +116,8 @@ export function tripRoutes(db: DB) {
   r.post('/trips/:id/finish', (c) => {
     const tripId = idParam(c);
     if (tripId === null) return notFound(c, c.req.param('id'));
+    const demo=db.prepare('SELECT demo FROM trips WHERE id=? AND user_id=?').get(tripId,c.get('userId')) as {demo:number}|undefined;
+    if(demo?.demo){const result=finishDemoTrip(db,c.get('userId'),tripId);if('error' in result)return c.json({error:result.error},result.status);return c.json(result)}
     // Normally the trip ends now. In test mode (backdated trips) it ends at its last point.
     const endedAt = (points: { timestamp: string }[]) =>
       ALLOW_BACKDATED && points.length ? points[points.length - 1]!.timestamp : new Date().toISOString();
@@ -129,7 +143,8 @@ export function tripRoutes(db: DB) {
     const trip = db.prepare(`SELECT ${TRIP_COLUMNS} FROM trips WHERE id = ? AND user_id = ?`).get(tripId, c.get('userId')) as TripRow | undefined;
     if (!trip) return notFound(c, tripId);
     const points = db.prepare('SELECT lat, lng, accuracy, timestamp FROM trip_points WHERE trip_id = ? ORDER BY timestamp, id').all(tripId);
-    return c.json({ ...tripJson(trip), points });
+    const evidence=db.prepare('SELECT submitted_at FROM trip_evidence WHERE trip_id=?').get(tripId);
+    return c.json({ ...tripJson(trip), points,evidence_status:evidence?'submitted':'none' });
   });
 
   return r;

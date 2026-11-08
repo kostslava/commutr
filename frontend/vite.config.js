@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+const backend=process.env.COMMUTR_BACKEND_URL||'http://localhost:8787';
 export default defineConfig({
-  server:{proxy:{'/api':'http://localhost:8787','/health':'http://localhost:8787','/routing':{target:'https://valhalla1.openstreetmap.de',changeOrigin:true,rewrite:p=>p.replace(/^\/routing/,''),headers:{'X-Client-Id':'commutr-local-development'}}}},
-  preview:{proxy:{'/api':'http://localhost:8787','/health':'http://localhost:8787','/routing':{target:'https://valhalla1.openstreetmap.de',changeOrigin:true,rewrite:p=>p.replace(/^\/routing/,''),headers:{'X-Client-Id':'commutr-local-development'}}}},
+  server:{proxy:{'/api':backend,'/health':backend,'/routing':{target:'https://valhalla1.openstreetmap.de',changeOrigin:true,rewrite:p=>p.replace(/^\/routing/,''),headers:{'X-Client-Id':'commutr-local-development'}}}},
+  preview:{proxy:{'/api':backend,'/health':backend,'/routing':{target:'https://valhalla1.openstreetmap.de',changeOrigin:true,rewrite:p=>p.replace(/^\/routing/,''),headers:{'X-Client-Id':'commutr-local-development'}}}},
   plugins: [VitePWA({
     registerType: 'autoUpdate',
     injectRegister: false,
