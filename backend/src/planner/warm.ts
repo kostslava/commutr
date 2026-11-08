@@ -50,8 +50,12 @@ function passes(entry: WarmPlace, r: GeoResult): boolean {
   return true;
 }
 
-/** Resolve one entry and store it (under its key and aliases, 30 days). Never throws. */
-export async function warmOne(entry: WarmPlace, stopsByFeed: Stop[][]): Promise<WarmOutcome> {
+/**
+ * Resolve one entry and store it (under its key and aliases, 30 days). Never throws.
+ * `search` defaults to the normal-priority warmSearch (npm run geocode:warm); the boot
+ * warm-up passes backgroundWarmSearch so it never delays users.
+ */
+export async function warmOne(entry: WarmPlace, stopsByFeed: Stop[][], search: typeof warmSearch = warmSearch): Promise<WarmOutcome> {
   if (entry.fixed) {
     const result: GeoResult = { ...entry.fixed };
     if (!P.inKwArea(result.lat, result.lng)) return { ok: false, via: 'fixed', reason: 'outside the KW area' };
@@ -69,7 +73,7 @@ export async function warmOne(entry: WarmPlace, stopsByFeed: Stop[][]): Promise<
   }
 
   const query = entry.query ?? entry.key;
-  const found = await warmSearch(query);
+  const found = await search(query);
   if (!found.ok) return { ok: false, via: 'nominatim', reason: found.reason };
   if (!found.results.length) return { ok: false, via: 'nominatim', reason: found.outside ? 'only results outside the KW area' : 'no match in the KW area' };
   const ranked = rankResults(query, found.results, null);

@@ -1,13 +1,14 @@
 // Background start-up work, run AFTER the server is listening so /health answers at once:
 //   1. GRT static GTFS (disk cache or download, ~2 MB; up to ~30 s on a slow host)
 //   2. the planner's warmed places (src/planner/places-warm.ts): GRT stops and fixed demo
-//      places offline, the rest from Nominatim at 1 request per 1.1 s. Only places not
+//      places offline, the rest from Nominatim at low priority (at most 1 every 3 s, and
+//      only when no user search is waiting; see planner/geocode.ts). Only places not
 //      already cached are searched. On by default in production (the host's disk is wiped
 //      on every restart), off otherwise; PLACE_WARM_ON_BOOT=1 / 0 forces it.
 // Until GTFS is ready, live buses fall back to fake ones and plans have no transit option,
 // exactly as when the GTFS download fails. Never throws.
 
-import { hasFreshCache } from './planner/geocode.js';
+import { backgroundWarmSearch, hasFreshCache } from './planner/geocode.js';
 import { WARM_PLACES } from './planner/places-warm.js';
 import { warmOne } from './planner/warm.js';
 import { getStaticFeeds, initStaticGtfs } from './transit/staticGtfs.js';
@@ -36,7 +37,8 @@ export async function bootInBackground(): Promise<void> {
       skipped++;
       continue;
     }
-    const r = await warmOne(p, stopsByFeed).catch(() => ({ ok: false }) as const);
+    // Low priority: user searches always go first (see geocode.ts).
+    const r = await warmOne(p, stopsByFeed, backgroundWarmSearch).catch(() => ({ ok: false }) as const);
     if (r.ok) done++;
     else failed++;
   }

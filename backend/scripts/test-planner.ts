@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { fileURLToPath } from 'node:url';
 import { GEMINI_CHAT_MODEL } from '../src/chat/config.js';
 import { BUILDERS_CLUB } from '../src/demoPlaces.js';
-import { DEFAULT_WAIT_MIN, PLAN_BUDGET_MS } from '../src/planner/config.js';
+import { COMPANION_PLAN_BUDGET_MS, DEFAULT_WAIT_MIN, NOMINATIM_MIN_INTERVAL_MS, PLAN_BUDGET_MS } from '../src/planner/config.js';
 import { DAILY_POINTS_CAP, MODE_RATES } from '../src/scoring/config.js';
 import { cycling, phone, track } from './lib/gps.js';
 import { addUser, BACKEND, startHarness, table, type Harness } from './lib/harness.js';
@@ -71,8 +71,13 @@ async function call(h: Harness, method: string, path: string, opts: { user?: num
   });
   const text = await res.text();
   responseBodies.push(text);
-  return { status: res.status, json: text ? JSON.parse(text) : null, ms: performance.now() - t0 };
+  return { status: res.status, json: text ? JSON.parse(text) : null, ms: performance.now() - t0, headers: res.headers };
 }
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const companionPlanCall = (h: Harness, user: number, body: unknown) => call(h, 'POST', '/api/companion/plan', { user, body });
+const discoverCall = (h: Harness, user: number, query: string) => call(h, 'POST', '/api/companion/discover', { user, body: { query } });
+/** A 429 that says how long to wait, in the body and the Retry-After header. */
+const retryInfo = (r: Awaited<ReturnType<typeof call>>) => r.status === 429 && r.json?.error?.code === 'rate_limited' && r.json?.retry_after_sec > 0 && r.headers.get('retry-after') === String(r.json?.retry_after_sec);
 const planCall = (h: Harness, user: number, body: unknown) => call(h, 'POST', '/api/plan', { user, body });
 const agent = (h: Harness, method: string, path: string, opts: { user?: number; body?: unknown; secret?: string | null } = {}) =>
   call(h, method, `/api/agent${path}`, {
@@ -319,10 +324,46 @@ async function mocked() {
     c = 'limits';
     userWithHome(main, 7801, 'Rate limit');
     const statuses: number[] = [];
-    for (let i = 0; i < 4; i++) statuses.push((await planCall(main, 7801, given)).status);
-    check(c, 'per-user planner limit: 3 per minute, then 429', statuses.join(',') === '200,200,200,429', statuses.join(','));
+    let last: Awaited<ReturnType<typeof call>> | undefined;
+    for (let i = 0; i < 11; i++) statuses.push((last = await planCall(main, 7801, given)).status);
+    check(c, 'per-user planner limit: 10 per minute, then 429', statuses.slice(0, 10).every((s) => s === 200) && statuses[10] === 429, statuses.join(','));
+    check(c, 'plan 429: retry_after_sec and a matching Retry-After header', retryInfo(last!), `${last?.json?.retry_after_sec} / ${last?.headers.get('retry-after')}`);
     r = await agent(main, 'POST', '/plan', { user: 7801, body: given });
     check(c, 'agent plan shares the limit (ok: false, spoken)', r.status === 200 && r.json?.ok === false && r.json?.code === 'rate_limited' && !!r.json?.summary, `${r.status} ${r.json?.code}`);
+    r = await companionPlanCall(main, 7801, { destination: 'Test Library' });
+    check(c, 'companion plan shares the limit: 429 with retry_after_sec and Retry-After', retryInfo(r), `${r.status} ${r.json?.retry_after_sec} / ${r.headers.get('retry-after')}`);
+
+    // Place search has its own bucket: it never uses planning slots.
+    userWithHome(main, 7802, 'Discover limit');
+    const dStatuses: number[] = [];
+    let dLast: Awaited<ReturnType<typeof call>> | undefined;
+    for (let i = 0; i < 11; i++) dStatuses.push((dLast = await discoverCall(main, 7802, 'Test Library')).status);
+    check(c, 'companion discover: 10 per minute, then 429', dStatuses.slice(0, 10).every((s) => s === 200) && dStatuses[10] === 429, dStatuses.join(','));
+    check(c, 'discover 429: retry_after_sec and a matching Retry-After header', retryInfo(dLast!), `${dLast?.json?.retry_after_sec} / ${dLast?.headers.get('retry-after')}`);
+    r = await companionPlanCall(main, 7802, { destination: 'Test Library' });
+    check(c, 'after 10 discovers the same user can still plan', r.status === 200 && r.json?.source === 'gemini', `${r.status} ${r.json?.source}`);
+    userWithHome(main, 7803, 'Plan then discover');
+    for (let i = 0; i < 10; i++) await planCall(main, 7803, given);
+    r = await discoverCall(main, 7803, 'Test Library');
+    check(c, 'after 10 plans the same user can still search places', r.status === 200 && r.json?.ok === true, `${r.status}`);
+
+    // --- Companion plan budget (6 s from arrival, Gemini kept in the loop) ---------------------
+    c = 'companion budget';
+    userWithHome(main, 7804, 'Companion fast');
+    r = await companionPlanCall(main, 7804, { destination: 'Test Library' });
+    check(c, 'normal Gemini: companion plan uses Gemini', r.status === 200 && r.json?.source === 'gemini', `${r.status} ${r.json?.source} ${Math.round(r.ms)} ms`);
+    // 3 Gemini calls x 2.1 s = 6.3 s: too slow for the 6 s companion budget, fine for 8 s.
+    userWithHome(main, 7805, 'Companion slow');
+    Object.assign(mock.state, { gemini: 'slow', slowMs: 2_100 });
+    r = await companionPlanCall(main, 7805, { destination: 'Test Library' });
+    const viaPlan = await planCall(main, 7805, { destination: 'Test Library' });
+    Object.assign(mock.state, { gemini: 'normal', slowMs: 6_000 });
+    check(c, 'slow Gemini: companion plan answers computed within its 6 s budget', r.status === 200 && r.json?.source === 'computed' && r.ms < COMPANION_PLAN_BUDGET_MS + 400, `${r.status} ${r.json?.source} ${Math.round(r.ms)} ms`);
+    check(c, 'slow Gemini: computed companion answer still has options and the map points', (r.json?.options ?? []).length > 0 && !!r.json?.map_origin && !!r.json?.map_destination);
+    check(c, '/api/plan keeps its 8 s budget (same slow Gemini -> gemini)', viaPlan.status === 200 && viaPlan.json?.source === 'gemini' && viaPlan.ms < PLAN_BUDGET_MS + 300, `${viaPlan.json?.source} ${Math.round(viaPlan.ms)} ms`);
+
+    c = 'limits';
+
     const usage = JSON.parse(readFileSync(dataDir('main') + 'usage.json', 'utf8'));
     const counted = usage.calls.counts[GEMINI_CHAT_MODEL] ?? 0;
     const sent = mock.gemini.filter((g) => g.model === GEMINI_CHAT_MODEL).length;
@@ -336,6 +377,9 @@ async function mocked() {
       srcs.push((await planCall(second, uid, { destination: 'Test Library' })).json?.source);
     }
     check(c, 'ceiling without room for a whole plan -> computed, no Gemini call', srcs.join(',') === 'gemini,gemini,computed' && planRequests(mock).length - n1 === 6, `${srcs.join(',')}, ${planRequests(mock).length - n1} calls`);
+    userWithHome(second, 7814, 'ceiling companion');
+    r = await companionPlanCall(second, 7814, { destination: 'Test Library' });
+    check(c, 'ceiling full: companion plan is 200 computed, not 429', r.status === 200 && r.json?.source === 'computed' && planRequests(mock).length - n1 === 6, `${r.status} ${r.json?.source}`);
     r = await planCall(second, 7811, { destination: 'Test Library' });
     const tr2 = optionOf(r.json, 'transit');
     check(c, 'trip updates down: next_bus null, default wait assumed', tr2 && tr2.next_bus === null && tr2.minutes >= DEFAULT_WAIT_MIN && tr2.minutes > (tr?.minutes ?? 0), `${tr2?.minutes} min vs ${tr?.minutes}`);
@@ -418,6 +462,24 @@ async function mocked() {
     check(c, 'Builders Club and the alias "Builders" are in the warm cache', !!warmCache['builders club']?.expires && warmCache['builders']?.results?.[0]?.name === warmCache['builders club']?.results?.[0]?.name);
     check(c, 'warm cache: stations, aliases and checked results stored with 30-day expiry', ['test square station', 'the square', 'test library'].every((k) => warmCache[k]?.expires > Date.now() + 29 * day));
     check(c, 'warm cache: nothing outside the area, nothing unresolved', !JSON.stringify(warmCache).includes('Outside Place') && !warmCache['nope'] && !warmCache['outside place']);
+
+    // The boot warm-up runs at low priority: a user search never waits behind it.
+    c = 'warm-up priority';
+    const { backgroundWarmSearch, geocode: userGeocode } = await import('../src/planner/geocode.js');
+    const nqP = mock.nominatim.length;
+    const bgQueries = ['Bg Library One', 'Bg Library Two', 'Bg Library Three'];
+    const background = Promise.all(bgQueries.map((q) => backgroundWarmSearch(q)));
+    await sleep(100);
+    const tUser = performance.now();
+    const userHit = await userGeocode('User Library Now', 2_500);
+    const userMs = performance.now() - tUser;
+    const bgResults = await background;
+    const log = mock.nominatim.slice(nqP);
+    const gaps = log.slice(1).map((n, i) => n.at - log[i]!.at);
+    check(c, 'user search during the warm-up: answered at once, not "no time"', userHit.ok && userHit.results.length > 0 && userMs < NOMINATIM_MIN_INTERVAL_MS + 300, `${Math.round(userMs)} ms`);
+    check(c, 'user search goes before the queued warm-up searches', log.findIndex((n) => n.q === 'User Library Now') <= 1, log.map((n) => n.q).join(' | '));
+    check(c, 'warm-up still finishes', bgResults.every((x) => x.ok), bgResults.map((x) => x.ok).join(','));
+    check(c, 'Nominatim spacing kept (>= 1.1 s between requests)', log.length === 4 && gaps.every((g) => g >= NOMINATIM_MIN_INTERVAL_MS - 50), gaps.join(','));
 
     // --- Plan cache ---------------------------------------------------------------------------------------
     c = 'plan cache';

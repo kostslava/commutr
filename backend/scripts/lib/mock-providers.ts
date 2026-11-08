@@ -37,7 +37,7 @@ export type Mock = {
   state: MockState;
   gemini: GeminiRequest[];
   eleven: { voice: string; text: string }[];
-  nominatim: { url: string; q: string; userAgent: string }[];
+  nominatim: { url: string; q: string; userAgent: string; at: number }[];
   count: (kind: GeminiRequest['kind']) => number;
   stop: () => Promise<void>;
 };
@@ -211,7 +211,7 @@ export async function startMockProviders(port: number): Promise<Mock> {
   };
   const gemini: GeminiRequest[] = [];
   const eleven: { voice: string; text: string }[] = [];
-  const nominatim: { url: string; q: string; userAgent: string }[] = [];
+  const nominatim: { url: string; q: string; userAgent: string; at: number }[] = [];
 
   const server = http.createServer(async (req, res) => {
     const chunks: Buffer[] = [];
@@ -262,7 +262,7 @@ export async function startMockProviders(port: number): Promise<Mock> {
     if (req.url?.startsWith('/search') && req.method === 'GET') {
       const u = new URL(req.url, 'http://mock');
       const q = u.searchParams.get('q') ?? '';
-      nominatim.push({ url: req.url, q, userAgent: String(req.headers['user-agent'] ?? '') });
+      nominatim.push({ url: req.url, q, userAgent: String(req.headers['user-agent'] ?? ''), at: Date.now() });
       if (state.nominatim === 'slow') await sleep(state.slowMs);
       if (state.nominatim === 'error') return send(503, { error: 'mock nominatim down' });
       const L = TEST_GRT.library;
