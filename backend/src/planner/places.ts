@@ -25,17 +25,48 @@ export type Place = {
   at: LatLng;
 };
 
-export type Origin = { at: LatLng; kind: 'home' | 'given' };
+/**
+ * Where a plan starts. `name` is how the starting point is said out loud, and the only
+ * part of it Gemini ever sees: "your saved home", "your current location", or a
+ * place name ("University of Waterloo"). Never coordinates.
+ */
+export type Origin = { at: LatLng; kind: 'home' | 'given' | 'named'; name: string };
+
+export type OriginError = 'invalid' | 'conflict' | 'origin_not_found' | 'search_unavailable';
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 export const validLatLng = (lat: unknown, lng: unknown) => isNum(lat) && isNum(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
 
-/** origin_lat/origin_lng if both given, else the saved home, else null. */
-export function resolveOrigin(db: DB, userId: number, body: Record<string, unknown>): Origin | null | 'invalid' {
-  const { origin_lat: lat, origin_lng: lng } = body;
-  if (lat !== undefined || lng !== undefined) return validLatLng(lat, lng) ? { at: [lat as number, lng as number], kind: 'given' } : 'invalid';
+export const HOME_NAME = 'your saved home';
+export const CURRENT_LOCATION_NAME = 'your current location';
+
+/** The spoken name of a resolved place: its first part only ("Waterloo Public Library - Main"). */
+function spokenName(p: Place): string {
+  if (p.kind === 'saved') return p.safe_name; // never the user's own label
+  if (p.kind === 'merchant') return p.display_name;
+  return p.display_name.split(', ')[0]!.trim();
+}
+
+/**
+ * The starting point, in this order: origin_name (a place, resolved like destinations,
+ * KW area only), else origin_lat/origin_lng, else the saved home, else null.
+ * Sending origin_name together with coordinates is a conflict.
+ */
+export async function resolveOrigin(db: DB, userId: number, body: Record<string, unknown>, timeoutMs: number): Promise<Origin | OriginError | null> {
+  const { origin_lat: lat, origin_lng: lng, origin_name: name } = body;
+  const hasCoords = lat !== undefined || lng !== undefined;
+  if (name !== undefined) {
+    if (hasCoords) return 'conflict';
+    if (typeof name !== 'string' || !name.trim() || name.length > 120) return 'invalid';
+    const found = await resolveDestination(db, userId, name.trim(), new PlaceBook(), timeoutMs);
+    if (!found.ok) return found.code === 'destination_not_found' ? 'origin_not_found' : 'search_unavailable';
+    const p = found.candidates[0]!;
+    if (p.kind === 'saved' && p.safe_name === 'your home') return { at: p.at, kind: 'home', name: HOME_NAME };
+    return { at: p.at, kind: 'named', name: spokenName(p) };
+  }
+  if (hasCoords) return validLatLng(lat, lng) ? { at: [lat as number, lng as number], kind: 'given', name: CURRENT_LOCATION_NAME } : 'invalid';
   const home = db.prepare("SELECT lat, lng FROM saved_locations WHERE user_id = ? AND kind = 'home'").get(userId) as { lat: number; lng: number } | undefined;
-  return home ? { at: [home.lat, home.lng], kind: 'home' } : null;
+  return home ? { at: [home.lat, home.lng], kind: 'home', name: HOME_NAME } : null;
 }
 
 const norm = (s: string) =>

@@ -115,6 +115,7 @@ async function mocked() {
     JSON.stringify({
       'test warm place': { at: Date.now() - 3 * day, expires: Date.now() + 27 * day, results: [{ name: 'Test Warm Place, Test Street, Kitchener', lat: L.lat, lng: L.lng }] },
       'old library': { at: Date.now() - 2 * day, results: [{ name: 'Old Cached Library', lat: L.lat, lng: L.lng }] },
+      'test warm origin': { at: Date.now() - day, expires: Date.now() + 29 * day, results: [{ name: 'Test Warm Origin, Origin Street, Waterloo', lat: 43.475, lng: -80.539 }] },
     }),
   );
   const main = await startHarness({ dbName: 'test-planner.db', port: 8781, env: mainEnv });
@@ -141,10 +142,10 @@ async function mocked() {
     const tr = optionOf(happy, 'transit');
     check(c, 'next bus from the live trip-updates feed', tr?.next_bus?.source === 'live' && tr.next_bus.route === '7' && tr.next_bus.stop_name === TEST_GRT.stopA.name && Math.abs(tr.next_bus.minutes - TEST_GRT.arrivalsMin[0]!) <= 1, JSON.stringify(tr?.next_bus));
     check(c, 'headsign without the route number', tr?.next_bus?.headsign === 'Test Mall', String(tr?.next_bus?.headsign));
-    check(c, 'summary from Gemini, using real option numbers', happy?.summary === `Mock plan: transit takes about ${tr?.minutes} minutes and earns about ${tr?.points_estimate} points.`, happy?.summary);
+    check(c, 'summary from Gemini, using real option numbers', happy?.summary === `From your saved home, Mock plan: transit takes about ${tr?.minutes} minutes and earns about ${tr?.points_estimate} points.`, happy?.summary);
     check(c, "Gemini's eco notes are used", tr?.eco_note === 'Mock note for transit.', tr?.eco_note);
     check(c, 'destination from the place search', happy?.destination?.kind === 'search' && /^Test Library/.test(happy?.destination?.name), JSON.stringify(happy?.destination));
-    check(c, 'origin is the saved home', happy?.origin === 'home');
+    check(c, 'origin is the saved home, said in words', happy?.origin === 'home' && happy?.origin_name === 'your saved home');
     check(c, 'GRT and OpenStreetMap attribution', happy?.attribution?.some((a: string) => /Grand River Transit/.test(a)) && happy?.attribution?.some((a: string) => /OpenStreetMap/.test(a)));
     check(c, '3 Gemini calls (2 tool rounds + final answer)', planRequests(mock).length - before === 3, String(planRequests(mock).length - before));
     const final = planRequests(mock).at(-1)!.body;
@@ -199,13 +200,13 @@ async function mocked() {
       check(c, `${label}: 200, source "computed"`, p.status === 200 && p.json?.source === 'computed', `${p.status} ${p.json?.source}`);
       check(c, `${label}: same computed numbers`, sameNumbers(p.json, happy));
       check(c, `${label}: within budget`, p.ms < PLAN_BUDGET_MS + 300, `${Math.round(p.ms)} ms`);
-      check(c, `${label}: computed recommendation and summary`, p.json?.recommendation === 'bike' && /^Biking to Test Library/.test(p.json?.summary ?? ''), p.json?.summary);
+      check(c, `${label}: computed recommendation and summary`, p.json?.recommendation === 'bike' && /^From your saved home, biking to Test Library/.test(p.json?.summary ?? ''), p.json?.summary);
     }
     userWithHome(main, 7606, 'invented number');
     mock.state.planner = 'invented_number';
     r = await planCall(main, 7606, { destination: 'Test Library' });
     mock.state.planner = 'good';
-    check(c, 'summary with an invented number is replaced', r.json?.source === 'gemini' && !String(r.json?.summary).includes('9999') && /^Taking the bus/.test(r.json?.summary ?? ''), r.json?.summary);
+    check(c, 'summary with an invented number is replaced', r.json?.source === 'gemini' && !String(r.json?.summary).includes('9999') && /^From your saved home, taking the bus/.test(r.json?.summary ?? ''), r.json?.summary);
 
     // --- Errors ---------------------------------------------------------------------------
     c = 'errors';
@@ -233,7 +234,57 @@ async function mocked() {
     check(c, 'saved location found by its label', r.status === 200 && r.json?.destination?.kind === 'saved' && r.json?.destination?.name === 'Campus', JSON.stringify(r.json?.destination));
     check(c, 'Gemini sees "your saved place", never the label', savedRaw.includes('your saved place') && !/campus/i.test(savedRaw));
     r = await planCall(main, 2, { destination: 'Test Library', origin_lat: 43.4701, origin_lng: -80.5302 });
-    check(c, 'origin_lat/origin_lng used when given', r.status === 200 && r.json?.origin === 'given');
+    check(c, 'origin_lat/origin_lng used when given, said as "your current location"', r.status === 200 && r.json?.origin === 'given' && r.json?.origin_name === 'your current location' && /^From your current location, /.test(r.json?.summary ?? ''), r.json?.summary);
+
+    // --- Starting point (origin_name) ---------------------------------------------------------------
+    c = 'starting point';
+    addUser(main.db, 7740, 'Named origin, no home');
+    let g0 = planRequests(mock).length;
+    let n0b = mock.nominatim.length;
+    r = await planCall(main, 7740, { destination: 'Test Library', origin_name: 'Test Campus' });
+    let rawNamed = planRequests(mock).slice(g0).map((g) => g.raw).join('\n');
+    check(c, 'origin_name resolves (no saved home needed)', r.status === 200 && r.json?.origin === 'named' && r.json?.origin_name === 'Test Campus', `${r.status} ${r.json?.origin} ${r.json?.origin_name}`);
+    check(c, 'summary starts with the named starting point', /^From Test Campus, /.test(r.json?.summary ?? ''), r.json?.summary);
+    check(c, 'Gemini is told the start by name only', rawNamed.includes("I'm starting from Test Campus") && !/\d+\.\d{4,}/.test(rawNamed));
+    check(c, 'origin search sends only the name to Nominatim', mock.nominatim.slice(n0b).some((n) => n.q === 'Test Campus') && mock.nominatim.slice(n0b).every((n) => !/lat=|lon=/.test(n.url)));
+    userWithHome(main, 7741, 'Warm origin');
+    n0b = mock.nominatim.length;
+    r = await planCall(main, 7741, { destination: 'Test Library', origin_name: 'test WARM origin' });
+    check(c, 'a warmed origin needs no Nominatim request', r.status === 200 && r.json?.origin_name === 'Test Warm Origin' && mock.nominatim.length === n0b, `${r.json?.origin_name}, ${mock.nominatim.length - n0b} requests`);
+    userWithHome(main, 7742, 'Origin home');
+    r = await planCall(main, 7742, { destination: 'Test Library', origin_name: 'home' });
+    check(c, 'origin_name "home" is the saved home', r.json?.origin === 'home' && r.json?.origin_name === 'your saved home' && /^From your saved home, /.test(r.json?.summary ?? ''));
+    g0 = planRequests(mock).length;
+    r = await planCall(main, 2, { destination: 'Test Library', origin_name: 'work' });
+    rawNamed = planRequests(mock).slice(g0).map((g) => g.raw).join('\n');
+    check(c, 'a saved-label origin is "your saved place", never the label', r.json?.origin_name === 'your saved place' && rawNamed.includes('your saved place') && !/\bwork\b/i.test(rawNamed), r.json?.origin_name);
+    userWithHome(main, 7743, 'Unknown origin');
+    r = await planCall(main, 7743, { destination: 'Test Library', origin_name: 'nowhere special' });
+    check(c, 'unknown origin -> 404 origin_not_found', r.status === 404 && r.json?.error?.code === 'origin_not_found', `${r.status} ${r.json?.error?.code}`);
+    r = await agent(main, 'POST', '/plan', { user: 7743, body: { destination: 'Test Library', origin_name: 'nowhere special' } });
+    check(c, 'agent: unknown origin -> ok false, asks for another place', r.status === 200 && r.json?.ok === false && r.json?.code === 'origin_not_found' && /another place/.test(r.json?.summary ?? ''), r.json?.summary);
+    r = await planCall(main, 7743, { destination: 'Test Library', origin_name: 'Outside Place' });
+    check(c, 'origin outside the KW area -> origin_not_found', r.status === 404 && r.json?.error?.code === 'origin_not_found');
+    addUser(main.db, 7744, 'No origin at all');
+    r = await planCall(main, 7744, { destination: 'Test Library' });
+    check(c, 'no origin at all -> 400 no_origin', r.status === 400 && r.json?.error?.code === 'no_origin');
+    r = await agent(main, 'POST', '/plan', { user: 7744, body: { destination: 'Test Library' } });
+    check(c, 'agent: no origin -> ok false, "Where are you starting from?"', r.status === 200 && r.json?.ok === false && r.json?.code === 'no_origin' && r.json?.summary === 'Where are you starting from?', r.json?.summary);
+    addUser(main.db, 7745, 'Conflict');
+    r = await planCall(main, 7745, { destination: 'Test Library', origin_name: 'Test Campus', origin_lat: 43.47, origin_lng: -80.53 });
+    check(c, 'origin_name and coordinates together -> 400', r.status === 400 && r.json?.error?.code === 'validation_error');
+    r = await planCall(main, 7745, { destination: 'Test Library', origin_name: 42 });
+    check(c, 'origin_name not a string -> 400', r.status === 400);
+    userWithHome(main, 7746, 'No start in summary');
+    mock.state.planner = 'no_start';
+    r = await planCall(main, 7746, { destination: 'Test Library' });
+    mock.state.planner = 'good';
+    check(c, 'Gemini summary without the start gets "Starting from ..." first', r.json?.source === 'gemini' && /^Starting from your saved home\. Mock plan:/.test(r.json?.summary ?? ''), r.json?.summary);
+    addUser(main.db, 7747, 'Computed named');
+    mock.state.gemini = 'error';
+    r = await planCall(main, 7747, { destination: 'Test Library', origin_name: 'Test Campus' });
+    mock.state.gemini = 'normal';
+    check(c, 'computed answer also starts with the named start', r.json?.source === 'computed' && /^From Test Campus, biking to /.test(r.json?.summary ?? ''), r.json?.summary);
 
     // --- Privacy ---------------------------------------------------------------------------------
     c = 'privacy';
@@ -369,7 +420,7 @@ async function mocked() {
     const fresh = await planCall(cacheSrv, 7730, { destination: 'Test Library' });
     const t1 = optionOf(first1.json, 'transit'), t2 = optionOf(fresh.json, 'transit');
     check(c, 'cached: points recomputed for the current trust', fresh.json?.cached === true && t2.points_estimate === expectedPoints(cacheSrv, 7730, 'transit', t2.points_km) && t2.points_estimate < t1.points_estimate, `${t1.points_estimate} -> ${t2.points_estimate}`);
-    check(c, 'cached: summary with now-stale numbers is replaced', fresh.json?.summary !== first1.json?.summary && /^Taking the bus/.test(fresh.json?.summary ?? ''), fresh.json?.summary);
+    check(c, 'cached: summary with now-stale numbers is replaced', fresh.json?.summary !== first1.json?.summary && /^From your saved home, taking the bus/.test(fresh.json?.summary ?? ''), fresh.json?.summary);
     k0 = planRequests(mock).length;
     const other = await planCall(cacheSrv, 7731, { destination: 'Test Library' });
     check(c, 'another user: not served from the cache', other.json?.cached === false && planRequests(mock).length - k0 === 3);
