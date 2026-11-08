@@ -1,18 +1,19 @@
 {
-  "hook": {
-    "page": "https://www.soundboardly.com/sounds/what-is-this-guy-doing/",
-    "file": "https://cdn.soundboardly.com/uploads/2023/08/What-is-this-guy-doing.mp3"
+  "opening": {
+    "source": "User-supplied 0DCDE9AD-136A-4AB9-97D5-E8A609055C91.MP4",
+    "audio": "muted",
+    "overlays": "none; baked-in source caption retained"
   },
-  "timelapse": {
-    "page": "https://www.myinstants.com/en/instant/cocomelon-intro-91408/",
-    "file": "https://www.myinstants.com/media/sounds/cocomelon-intro.mp3"
+  "walking": {
+    "source": "User-supplied IMG_4108.mov",
+    "audio": "silent"
   },
   "effects": {
     "source": "HyperFrames bundled Pixabay library",
     "cues": [
       "pop",
-      "whoosh",
       "chime"
-    ]
+    ],
+    "placement": "logo ending only"
   }
 }

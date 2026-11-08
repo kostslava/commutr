@@ -1,1 +1,15 @@
-{"lines":[{"id":"hook","text":"Whoa! What is this guy even doing, bro?","sfx":["pop","whoosh","chime"]}],"bgm":{"mode":"none"}}
+{
+  "lines": [
+    {
+      "id": "outro",
+      "text": "",
+      "sfx": [
+        "pop",
+        "chime"
+      ]
+    }
+  ],
+  "bgm": {
+    "mode": "none"
+  }
+}

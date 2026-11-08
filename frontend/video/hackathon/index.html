@@ -1,58 +1,66 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><title>Commutr — the coffee run</title><script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script><style>*{box-sizing:border-box}html,body{margin:0;background:#fff9ef}#root{position:relative;width:1080px;height:1920px;overflow:hidden;font-family:Montserrat,sans-serif;color:#fff9ef}.clip{position:absolute}#story{inset:0;width:1080px;height:1920px;object-fit:cover}.shade{position:absolute;inset:0;background:linear-gradient(transparent 58%,rgba(4,28,17,.15) 77%,rgba(4,28,17,.28))}.caption{left:75px;width:930px;top:1360px;height:180px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.12;font-weight:900;font-size:63px;letter-spacing:-2px;text-shadow:0 4px 0 #102319,3px 0 0 #102319,-3px 0 0 #102319,0 -3px 0 #102319,0 7px 16px #102319}.caption span{display:block}em{font-style:normal;color:#cfef78}.label{position:absolute;left:76px;top:170px;padding:18px 25px;background:#0a4126;border-radius:16px;font-size:28px;font-weight:700;letter-spacing:2px}.hooktext{position:absolute;left:75px;top:330px;width:930px;font-size:95px;font-weight:900;line-height:.96;letter-spacing:-4px;text-shadow:0 5px 0 #102319}.hooktext{background:#0a4126;padding:30px;border-radius:24px}.hooktext small{display:block;margin-top:30px;font-size:38px;letter-spacing:0}.tag{position:absolute;left:76px;top:1170px;background:#fff9ef;color:#0a4126;border:4px solid #0a4126;border-radius:22px;padding:22px 30px;font-weight:900;font-size:48px;box-shadow:7px 8px 0 #0a4126}#routing .tag{top:350px}.outro{inset:0;width:1080px;height:1920px;background:#fff9ef;color:#0a4126;overflow:hidden}.routepath{position:absolute;inset:0;width:1080px;height:1920px}.logo{position:absolute;left:95px;top:785px;width:890px;height:auto}.outcopy{position:absolute;left:80px;top:1085px;width:920px;text-align:center;font-size:63px;font-weight:900;letter-spacing:-2px}.outsub{position:absolute;left:80px;top:1200px;width:920px;text-align:center;font-family:'Space Mono',monospace;font-size:29px;letter-spacing:1px}.endlabel{position:absolute;left:80px;top:170px;font-family:'Space Mono',monospace;font-size:28px;letter-spacing:3px}.endfoot{position:absolute;left:80px;bottom:190px;font-size:28px;font-weight:700}.dot{position:absolute;width:28px;height:28px;background:#3d8e2b;border-radius:50%}</style></head><body><div id="root" data-composition-id="main" data-width="1080" data-height="1920" data-duration="36.2" data-fps="30">
-<video id="story" class="clip" src="assets/story.mp4" data-start="0" data-duration="32.99999999999999" data-track-index="0" muted playsinline></video>
-<audio id="dialogue" src="assets/story.mp4" data-start="0" data-duration="32.99999999999999" data-track-index="10" data-volume="1"></audio>
-<div id="shade" class="clip shade" data-start="0" data-duration="32.99999999999999" data-track-index="1"></div>
-<audio id="meme" src="assets/hook.mp3" data-start="0.08" data-duration="2.65" data-track-index="11" data-volume="0.85"></audio>
-<section id="opening" class="clip " data-start="0.000" data-duration="2.867" data-track-index="3"><div class="label">THE COFFEE RUN</div><div class="hooktext">WHAT IS THIS GUY DOING?<small>bro found the side quest</small></div></section>
-<section id="rewind" class="clip " data-start="2.867" data-duration="1.200" data-track-index="3"><div class="label">30 SECONDS EARLIER...</div></section>
-<section id="caption-0" class="clip caption" data-start="5.893" data-duration="1.074" data-track-index="3"><span>So, where are you going?</span></section>
-<section id="caption-1" class="clip caption" data-start="7.017" data-duration="0.890" data-track-index="3"><span>Yeah, I’m gonna get <em>coffee</em></span></section>
-<section id="caption-2" class="clip caption" data-start="7.907" data-duration="0.710" data-track-index="3"><span>down the street.</span></section>
-<section id="caption-3" class="clip caption" data-start="8.713" data-duration="0.640" data-track-index="3"><span>Dude...</span></section>
-<section id="caption-4" class="clip caption" data-start="9.353" data-duration="1.020" data-track-index="3"><span>it’s a <em>five-minute walk.</em></span></section>
-<section id="caption-5" class="clip caption" data-start="10.413" data-duration="0.987" data-track-index="3"><span>Why are you taking your car?</span></section>
-<section id="caption-6" class="clip caption" data-start="11.480" data-duration="1.420" data-track-index="3"><span>Because it’s <em>right here.</em></span></section>
-<section id="caption-7" class="clip caption" data-start="12.970" data-duration="1.040" data-track-index="3"><span>Let me put you on, bro.</span></section>
-<section id="caption-8" class="clip caption" data-start="14.050" data-duration="0.517" data-track-index="3"><span>Come with me.</span></section>
-<section id="caption-9" class="clip caption" data-start="14.567" data-duration="1.250" data-track-index="3"><span>Start me a <em>walk</em></span></section>
-<section id="caption-10" class="clip caption" data-start="15.817" data-duration="0.970" data-track-index="3"><span>to the nearest café.</span></section>
-<section id="caption-11" class="clip caption" data-start="16.800" data-duration="1.580" data-track-index="3"><span>The closest spot is</span></section>
-<section id="caption-12" class="clip caption" data-start="18.380" data-duration="1.587" data-track-index="3"><span>the Bauer Bakery & Café.</span></section>
-<section id="caption-13" class="clip caption" data-start="20.047" data-duration="0.886" data-track-index="3"><span>Yes, please.</span></section>
-<section id="caption-14" class="clip caption" data-start="21.033" data-duration="0.940" data-track-index="3"><span>Planning your route</span></section>
-<section id="caption-15" class="clip caption" data-start="21.973" data-duration="1.190" data-track-index="3"><span>to the café now.</span></section>
-<section id="caption-16" class="clip caption" data-start="29.233" data-duration="0.760" data-track-index="3"><span>Yo, look at that.</span></section>
-<section id="caption-17" class="clip caption" data-start="30.093" data-duration="1.020" data-track-index="3"><span>We just got <em>six free points.</em></span></section>
-<section id="caption-18" class="clip caption" data-start="31.253" data-duration="0.960" data-track-index="3"><span>Later, I can redeem</span></section>
-<section id="caption-19" class="clip caption" data-start="32.213" data-duration="0.787" data-track-index="3"><span>a <em>free coffee</em> here.</span></section>
-<section id="routing" class="clip " data-start="23.200" data-duration="1.700" data-track-index="3"><div class="tag">✓ ROUTE READY</div></section>
-<section id="walking" class="clip " data-start="24.900" data-duration="4.233" data-track-index="3"><div class="label">SIDE QUEST: COFFEE</div><div class="tag">walking arc unlocked</div></section>
-<audio id="coco" src="assets/cocomelon.mp3" data-start="24.899999999999995" data-duration="4.233333333333333" data-track-index="12" data-volume="0.65"></audio>
-<section id="points" class="clip " data-start="30.333" data-duration="1.800" data-track-index="3"><div class="label">+6 POINTS</div></section>
-<section id="endcard" class="clip outro" data-start="33.000" data-duration="3.200" data-track-index="3"><svg class="routepath" viewBox="0 0 1080 1920"><path d="M-80 510 C290 230 650 710 1110 420" fill="none" stroke="#dce7c2" stroke-width="7" stroke-dasharray="20 20"/><path d="M-40 1510 C340 1760 680 1340 1140 1550" fill="none" stroke="#dce7c2" stroke-width="7" stroke-dasharray="20 20"/></svg><div class="endlabel">YOUR EVERYDAY SIDE QUEST.</div><div id="logowrap"><img id="logo" class="logo" src="assets/logo.png" alt="Commutr"></div><div id="outcopy" class="outcopy">Go places. Get rewarded.</div><div id="outsub" class="outsub">WALK · RIDE · EARN</div><div class="dot" id="dot1" style="left:150px;top:490px"></div><div class="dot" id="dot2" style="left:860px;top:1510px"></div><div class="endfoot">A better way to get there.</div></section>
-<audio id="endpop" src="assets/sfx/pop.mp3" data-start="33.11999999999999" data-duration=".72" data-track-index="13" data-volume=".45"></audio>
-<audio id="endchime" src="assets/sfx/chime.mp3" data-start="33.379999999999995" data-duration="2.5" data-track-index="14" data-volume=".30"></audio>
-<audio id="rewind-sfx" src="assets/sfx/whoosh.mp3" data-start="2.75" data-duration=".57" data-track-index="15" data-volume=".25"></audio></div><script>window.__timelines=window.__timelines||{};const tl=gsap.timeline({paused:true});
-tl.fromTo('.hooktext',{scale:.75,rotation:-4,opacity:0},{scale:1,rotation:0,opacity:1,duration:.32,ease:'back.out(2.2)'},.08);
-tl.fromTo('#caption-0 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},5.893);
-tl.fromTo('#caption-1 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},7.017);
-tl.fromTo('#caption-2 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},7.907);
-tl.fromTo('#caption-3 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},8.713);
-tl.fromTo('#caption-4 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},9.353);
-tl.fromTo('#caption-5 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},10.413);
-tl.fromTo('#caption-6 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},11.48);
-tl.fromTo('#caption-7 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},12.97);
-tl.fromTo('#caption-8 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},14.05);
-tl.fromTo('#caption-9 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},14.567);
-tl.fromTo('#caption-10 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},15.817);
-tl.fromTo('#caption-11 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},16.8);
-tl.fromTo('#caption-12 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},18.38);
-tl.fromTo('#caption-13 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},20.047);
-tl.fromTo('#caption-14 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},21.033);
-tl.fromTo('#caption-15 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},21.973);
-tl.fromTo('#caption-16 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},29.233);
-tl.fromTo('#caption-17 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},30.093);
-tl.fromTo('#caption-18 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},31.253);
-tl.fromTo('#caption-19 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},32.213);
-tl.fromTo('#logo',{scale:.15,rotation:-10,opacity:0},{scale:1,rotation:0,opacity:1,duration:.66,ease:'back.out(2.5)'},33.07999999999999);tl.fromTo('#outcopy',{y:40,opacity:0},{y:0,opacity:1,duration:.4,ease:'power3.out'},33.57999999999999);tl.fromTo('#outsub',{opacity:0},{opacity:1,duration:.3},33.849999999999994);tl.fromTo('#dot1',{x:-100},{x:120,duration:3.2,ease:'none'},32.99999999999999);tl.fromTo('#dot2',{x:120},{x:-120,duration:3.2,ease:'none'},32.99999999999999);
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><title>Commutr — the coffee run</title><script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script><style>*{box-sizing:border-box}html,body{margin:0;background:#fff9ef}#root{position:relative;width:1080px;height:1920px;overflow:hidden;font-family:Montserrat,sans-serif;color:#fff9ef}.clip{position:absolute}#story{inset:0;width:1080px;height:1920px;object-fit:cover}.shade{position:absolute;inset:0;background:linear-gradient(transparent 58%,rgba(4,28,17,.15) 77%,rgba(4,28,17,.28))}.caption{left:75px;width:930px;top:1360px;height:180px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.12;font-weight:900;font-size:63px;letter-spacing:-2px;text-shadow:0 4px 0 #102319,3px 0 0 #102319,-3px 0 0 #102319,0 -3px 0 #102319,0 7px 16px #102319}.caption span{display:block}em{font-style:normal;color:#cfef78}.label{position:absolute;left:76px;top:170px;padding:18px 25px;background:#0a4126;border-radius:16px;font-size:28px;font-weight:700;letter-spacing:2px}.hooktext{position:absolute;left:75px;top:330px;width:930px;font-size:95px;font-weight:900;line-height:.96;letter-spacing:-4px;text-shadow:0 5px 0 #102319}.hooktext{background:#0a4126;padding:30px;border-radius:24px}.hooktext small{display:block;margin-top:30px;font-size:38px;letter-spacing:0}.tag{position:absolute;left:76px;top:1170px;background:#fff9ef;color:#0a4126;border:4px solid #0a4126;border-radius:22px;padding:22px 30px;font-weight:900;font-size:48px;box-shadow:7px 8px 0 #0a4126}#routing .tag{top:350px}.outro{inset:0;width:1080px;height:1920px;background:#fff9ef;color:#0a4126;overflow:hidden}.routepath{position:absolute;inset:0;width:1080px;height:1920px}.logo{position:absolute;left:95px;top:785px;width:890px;height:auto}.outcopy{position:absolute;left:80px;top:1085px;width:920px;text-align:center;font-size:63px;font-weight:900;letter-spacing:-2px}.outsub{position:absolute;left:80px;top:1200px;width:920px;text-align:center;font-family:'Space Mono',monospace;font-size:29px;letter-spacing:1px}.endlabel{position:absolute;left:80px;top:170px;font-family:'Space Mono',monospace;font-size:28px;letter-spacing:3px}.endfoot{position:absolute;left:80px;bottom:190px;font-size:28px;font-weight:700}.dot{position:absolute;width:28px;height:28px;background:#3d8e2b;border-radius:50%}</style></head><body><div id="root" data-composition-id="main" data-width="1080" data-height="1920" data-duration="56.833333333333336" data-fps="30">
+<video id="story" class="clip" src="assets/story.mp4" data-start="0" data-duration="53.63333333333334" data-track-index="0" muted playsinline></video>
+<audio id="dialogue" src="assets/story.mp4" data-start="0" data-duration="53.63333333333334" data-track-index="10" data-volume="1"></audio>
+<div id="shade" class="clip shade" data-start="7.1" data-duration="46.53333333333334" data-track-index="1"></div>
+<section id="caption-0" class="clip caption" data-start="10.127" data-duration="1.073" data-track-index="3"><span>So, where are you going?</span></section>
+<section id="caption-1" class="clip caption" data-start="11.250" data-duration="0.890" data-track-index="3"><span>Yeah, I’m gonna get <em>coffee</em></span></section>
+<section id="caption-2" class="clip caption" data-start="12.140" data-duration="0.710" data-track-index="3"><span>down the street.</span></section>
+<section id="caption-3" class="clip caption" data-start="12.947" data-duration="0.640" data-track-index="3"><span>Dude...</span></section>
+<section id="caption-4" class="clip caption" data-start="13.587" data-duration="1.020" data-track-index="3"><span>it’s a <em>five-minute walk.</em></span></section>
+<section id="caption-5" class="clip caption" data-start="14.647" data-duration="0.986" data-track-index="3"><span>Why are you taking your car?</span></section>
+<section id="caption-6" class="clip caption" data-start="15.713" data-duration="1.420" data-track-index="3"><span>Because it’s <em>right here.</em></span></section>
+<section id="caption-7" class="clip caption" data-start="17.203" data-duration="1.040" data-track-index="3"><span>Let me put you on, bro.</span></section>
+<section id="caption-8" class="clip caption" data-start="18.283" data-duration="0.517" data-track-index="3"><span>Come with me.</span></section>
+<section id="caption-9" class="clip caption" data-start="18.920" data-duration="1.440" data-track-index="3"><span>Hey, I’m Muta.</span></section>
+<section id="caption-10" class="clip caption" data-start="20.640" data-duration="0.700" data-track-index="3"><span>What’s the plan?</span></section>
+<section id="caption-11" class="clip caption" data-start="21.980" data-duration="0.940" data-track-index="3"><span>Start me a <em>trip</em></span></section>
+<section id="caption-12" class="clip caption" data-start="22.920" data-duration="1.020" data-track-index="3"><span>to the nearest café.</span></section>
+<section id="caption-13" class="clip caption" data-start="27.000" data-duration="1.580" data-track-index="3"><span>The closest spot is</span></section>
+<section id="caption-14" class="clip caption" data-start="28.580" data-duration="1.640" data-track-index="3"><span>the Bauer Bakery & Café,</span></section>
+<section id="caption-15" class="clip caption" data-start="30.460" data-duration="1.040" data-track-index="3"><span>which is about a</span></section>
+<section id="caption-16" class="clip caption" data-start="31.500" data-duration="1.440" data-track-index="3"><span><em>37-minute walk.</em></span></section>
+<section id="caption-17" class="clip caption" data-start="33.260" data-duration="0.840" data-track-index="3"><span>Would you like me</span></section>
+<section id="caption-18" class="clip caption" data-start="34.100" data-duration="0.930" data-track-index="3"><span>to plan a route there for you?</span></section>
+<section id="caption-19" class="clip caption" data-start="35.900" data-duration="0.920" data-track-index="3"><span>Yes, please.</span></section>
+<section id="caption-20" class="clip caption" data-start="38.020" data-duration="0.940" data-track-index="3"><span>Planning your route</span></section>
+<section id="caption-21" class="clip caption" data-start="38.960" data-duration="1.240" data-track-index="3"><span>to the café now.</span></section>
+<section id="caption-22" class="clip caption" data-start="44.000" data-duration="1.533" data-track-index="3"><span>from your saved home.</span></section>
+<section id="caption-23" class="clip caption" data-start="49.867" data-duration="0.760" data-track-index="3"><span>Yo, look at that.</span></section>
+<section id="caption-24" class="clip caption" data-start="50.727" data-duration="1.020" data-track-index="3"><span>We just got <em>six free points.</em></span></section>
+<section id="caption-25" class="clip caption" data-start="51.887" data-duration="0.960" data-track-index="3"><span>Later, I can redeem</span></section>
+<section id="caption-26" class="clip caption" data-start="52.847" data-duration="0.786" data-track-index="3"><span>a <em>free coffee</em> here.</span></section>
+<section id="walking" class="clip " data-start="45.533" data-duration="4.233" data-track-index="3"><div class="label">SIDE QUEST: COFFEE</div><div class="tag">walking arc unlocked</div></section>
+<section id="points" class="clip " data-start="50.967" data-duration="1.800" data-track-index="3"><div class="label">+6 POINTS</div></section>
+<section id="endcard" class="clip outro" data-start="53.633" data-duration="3.200" data-track-index="3"><svg class="routepath" viewBox="0 0 1080 1920"><path d="M-80 510 C290 230 650 710 1110 420" fill="none" stroke="#dce7c2" stroke-width="7" stroke-dasharray="20 20"/><path d="M-40 1510 C340 1760 680 1340 1140 1550" fill="none" stroke="#dce7c2" stroke-width="7" stroke-dasharray="20 20"/></svg><div class="endlabel">YOUR EVERYDAY SIDE QUEST.</div><div id="logowrap"><img id="logo" class="logo" src="assets/logo.png" alt="Commutr"></div><div id="outcopy" class="outcopy">Go places. Get rewarded.</div><div id="outsub" class="outsub">WALK · RIDE · EARN</div><div class="dot" id="dot1" style="left:150px;top:490px"></div><div class="dot" id="dot2" style="left:860px;top:1510px"></div><div class="endfoot">A better way to get there.</div></section>
+<audio id="endpop" src="assets/sfx/pop.mp3" data-start="53.75333333333334" data-duration=".72" data-track-index="13" data-volume=".45"></audio>
+<audio id="endchime" src="assets/sfx/chime.mp3" data-start="54.01333333333334" data-duration="2.5" data-track-index="14" data-volume=".30"></audio>
+</div><script>window.__timelines=window.__timelines||{};const tl=gsap.timeline({paused:true});
+tl.fromTo('#caption-0 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},10.127);
+tl.fromTo('#caption-1 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},11.25);
+tl.fromTo('#caption-2 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},12.14);
+tl.fromTo('#caption-3 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},12.947);
+tl.fromTo('#caption-4 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},13.587);
+tl.fromTo('#caption-5 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},14.647);
+tl.fromTo('#caption-6 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},15.713);
+tl.fromTo('#caption-7 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},17.203);
+tl.fromTo('#caption-8 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},18.283);
+tl.fromTo('#caption-9 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},18.92);
+tl.fromTo('#caption-10 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},20.64);
+tl.fromTo('#caption-11 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},21.98);
+tl.fromTo('#caption-12 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},22.92);
+tl.fromTo('#caption-13 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},27.0);
+tl.fromTo('#caption-14 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},28.58);
+tl.fromTo('#caption-15 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},30.46);
+tl.fromTo('#caption-16 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},31.5);
+tl.fromTo('#caption-17 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},33.26);
+tl.fromTo('#caption-18 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},34.1);
+tl.fromTo('#caption-19 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},35.9);
+tl.fromTo('#caption-20 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},38.02);
+tl.fromTo('#caption-21 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},38.96);
+tl.fromTo('#caption-22 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},44.0);
+tl.fromTo('#caption-23 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},49.867);
+tl.fromTo('#caption-24 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},50.727);
+tl.fromTo('#caption-25 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},51.887);
+tl.fromTo('#caption-26 span',{scale:.93,y:12},{scale:1,y:0,duration:.12,ease:'back.out(1.5)'},52.847);
+tl.fromTo('#logo',{scale:.15,rotation:-10,opacity:0},{scale:1,rotation:0,opacity:1,duration:.66,ease:'back.out(2.5)'},53.71333333333334);tl.fromTo('#outcopy',{y:40,opacity:0},{y:0,opacity:1,duration:.4,ease:'power3.out'},54.21333333333334);tl.fromTo('#outsub',{opacity:0},{opacity:1,duration:.3},54.48333333333334);tl.fromTo('#dot1',{x:-100},{x:120,duration:3.2,ease:'none'},53.63333333333334);tl.fromTo('#dot2',{x:120},{x:-120,duration:3.2,ease:'none'},53.63333333333334);
 window.__timelines.main=tl;</script></body></html>

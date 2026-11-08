@@ -1,102 +1,137 @@
 [
   {
-    "start": 5.893,
-    "end": 6.967,
+    "start": 10.127,
+    "end": 11.2,
     "text": "So, where are you going?"
   },
   {
-    "start": 7.017,
-    "end": 7.907,
+    "start": 11.25,
+    "end": 12.14,
     "text": "Yeah, I\u2019m gonna get <em>coffee</em>"
   },
   {
-    "start": 7.907,
-    "end": 8.617,
+    "start": 12.14,
+    "end": 12.85,
     "text": "down the street."
   },
   {
-    "start": 8.713,
-    "end": 9.353,
+    "start": 12.947,
+    "end": 13.587,
     "text": "Dude..."
   },
   {
-    "start": 9.353,
-    "end": 10.373,
+    "start": 13.587,
+    "end": 14.607,
     "text": "it\u2019s a <em>five-minute walk.</em>"
   },
   {
-    "start": 10.413,
-    "end": 11.4,
+    "start": 14.647,
+    "end": 15.633,
     "text": "Why are you taking your car?"
   },
   {
-    "start": 11.48,
-    "end": 12.9,
+    "start": 15.713,
+    "end": 17.133,
     "text": "Because it\u2019s <em>right here.</em>"
   },
   {
-    "start": 12.97,
-    "end": 14.01,
+    "start": 17.203,
+    "end": 18.243,
     "text": "Let me put you on, bro."
   },
   {
-    "start": 14.05,
-    "end": 14.567,
+    "start": 18.283,
+    "end": 18.8,
     "text": "Come with me."
   },
   {
-    "start": 14.567,
-    "end": 15.817,
-    "text": "Start me a <em>walk</em>"
+    "start": 18.92,
+    "end": 20.36,
+    "text": "Hey, I\u2019m Muta."
   },
   {
-    "start": 15.817,
-    "end": 16.787,
+    "start": 20.64,
+    "end": 21.34,
+    "text": "What\u2019s the plan?"
+  },
+  {
+    "start": 21.98,
+    "end": 22.92,
+    "text": "Start me a <em>trip</em>"
+  },
+  {
+    "start": 22.92,
+    "end": 23.94,
     "text": "to the nearest caf\u00e9."
   },
   {
-    "start": 16.8,
-    "end": 18.38,
+    "start": 27.0,
+    "end": 28.58,
     "text": "The closest spot is"
   },
   {
-    "start": 18.38,
-    "end": 19.967,
-    "text": "the Bauer Bakery & Caf\u00e9."
+    "start": 28.58,
+    "end": 30.22,
+    "text": "the Bauer Bakery & Caf\u00e9,"
   },
   {
-    "start": 20.047,
-    "end": 20.933,
+    "start": 30.46,
+    "end": 31.5,
+    "text": "which is about a"
+  },
+  {
+    "start": 31.5,
+    "end": 32.94,
+    "text": "<em>37-minute walk.</em>"
+  },
+  {
+    "start": 33.26,
+    "end": 34.1,
+    "text": "Would you like me"
+  },
+  {
+    "start": 34.1,
+    "end": 35.03,
+    "text": "to plan a route there for you?"
+  },
+  {
+    "start": 35.9,
+    "end": 36.82,
     "text": "Yes, please."
   },
   {
-    "start": 21.033,
-    "end": 21.973,
+    "start": 38.02,
+    "end": 38.96,
     "text": "Planning your route"
   },
   {
-    "start": 21.973,
-    "end": 23.163,
+    "start": 38.96,
+    "end": 40.2,
     "text": "to the caf\u00e9 now."
   },
   {
-    "start": 29.233,
-    "end": 29.993,
+    "start": 44.0,
+    "end": 45.533,
+    "text": "from your saved home."
+  },
+  {
+    "start": 49.867,
+    "end": 50.627,
     "text": "Yo, look at that."
   },
   {
-    "start": 30.093,
-    "end": 31.113,
+    "start": 50.727,
+    "end": 51.747,
     "text": "We just got <em>six free points.</em>"
   },
   {
-    "start": 31.253,
-    "end": 32.213,
+    "start": 51.887,
+    "end": 52.847,
     "text": "Later, I can redeem"
   },
   {
-    "start": 32.213,
-    "end": 33.0,
+    "start": 52.847,
+    "end": 53.633,
     "text": "a <em>free coffee</em> here."
   }
 ]
