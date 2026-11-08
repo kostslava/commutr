@@ -1,8 +1,39 @@
 # ElevenLabs live agent: tool setup
 
-The Commutr mascot is an ElevenLabs live voice agent. Its tools are **server tools (webhooks)**: ElevenLabs' servers call our backend over HTTPS. This file has everything needed to set them up in the ElevenLabs dashboard (Agent → Tools → Add tool → Webhook). Paste each field as written.
+> **Current design: Muta's browser tools.** The live agent is **Muta**. Its tools are **browser (client) tools** that run inside the app; they're listed in [Muta browser tools (current)](#muta-browser-tools-current) just below. Sections 1–5 describe the **legacy webhook tools** (`/api/agent/*`, a Cloudflare tunnel, `AGENT_TOOL_SECRET`). Those endpoints are still built, but **the frontend doesn't use them** and they aren't attached to Muta.
+>
+> ⚠️ **Do not run `npm run agent:setup`.** It updates the same agent and overwrites Muta: it renames it, makes it public, replaces the browser tools with the 7 webhook tools and replaces the prompt.
 
-The backend side is described in [`docs/api.md`](api.md) under "Live voice agent tools".
+## Muta browser tools (current)
+
+Configured on the agent by `npm run companion:setup` (`backend/scripts/companion-setup.ts`): 10 tools of type `client`, each with `expects_response: true` and `response_timeout_secs: 120`. The browser handlers are the `clientTools` in `frontend/src/Companion.jsx`. App actions go through one allow-listed boundary (`frontend/src/companionActions.js` and `frontend/src/useCompanionActions.js`). The backend stays the authority for points, eligibility and balances.
+
+| Tool | Parameters | What the app does | Backend calls |
+|---|---|---|---|
+| `get_status` | — | Refreshes the app's data, returns the account `status` | `GET /api/companion/account` |
+| `get_rewards` | — | Opens the Shop, returns the account `rewards` | `GET /api/companion/account` |
+| `get_clubs` | — | Returns the account `clubs` (`{ clubs: [...] }`) | `GET /api/companion/account` |
+| `discover_places` | `query` (string, required) | Returns real KW places from the search | `POST /api/companion/discover` |
+| `navigate` | `page`: `Home` \| `Explore` \| `Wallet` \| `Rewards` \| `Community` (required) | Switches to that tab (Explore is the map) | — |
+| `plan_trip` | `destination` (required), `origin_name`, `mode`: `walk` \| `bike` \| `transit` | Plans, shows the route on the map, selects the mode, opens the map. **Doesn't start recording.** | `POST /api/companion/plan` |
+| `start_trip` | `mode`: `walk` \| `bike` \| `scooter` \| `transit` \| `car` (required) | Starts the app's foreground GPS tracker (asks for location permission). Refuses if a trip is already active. | `POST /api/trips`, then `POST /api/trips/:id/points` |
+| `finish_trip` | — | Uploads any pending GPS points, then finishes and scores the trip | `POST /api/trips/:id/points`, `POST /api/trips/:id/finish` |
+| `redeem_reward` | `reward_id` (integer, required) | Re-reads the catalogue, refuses if the reward is missing, locked, unaffordable or already redeemed today, otherwise redeems and opens the Wallet | `GET /api/rewards`, `POST /api/rewards/:id/redeem` |
+| `get_route_safety` | `destination` | Returns a fixed "not available yet" answer in the browser | — |
+
+- **No spoken confirmation step.** Unlike the legacy webhook tools, `redeem_reward` and `finish_trip` have **no `confirm` parameter**, and the app runs them directly on an explicit request. Muta's prompt (`MUTA_VOICE_PROMPT` in `backend/src/chat/muta.ts`) tells it to redeem only on an explicit request with a real `reward_id`, and to ask one short question if anything is unclear.
+- **User:** every call acts as demo user 1 (`X-Demo-User: 1` in `frontend/src/api.js`). The `demo_user` dynamic variable has no effect here.
+- **No tunnel, no `AGENT_TOOL_SECRET`:** ElevenLabs sends the tool call to the browser, never to our backend.
+- **Screen updates from results:** `onAgentToolResponse` in the app also reacts to `plan_trip` (show the plan), `redeem_reward` (refresh, open the Wallet), `get_rewards` (open the Shop) and `get_status` (refresh).
+- Tool IDs for these browser tools are kept in the gitignored `backend/data/companion-tools.json` on the machine that ran `companion:setup`. Only that script uses them; running the app doesn't need them.
+
+---
+
+*Everything below is the legacy webhook design.*
+
+The original design: the Commutr mascot's tools are **server tools (webhooks)**: ElevenLabs' servers call our backend over HTTPS. This part has everything needed to set them up in the ElevenLabs dashboard (Agent → Tools → Add tool → Webhook). Paste each field as written.
+
+The backend side is described in [`docs/api.md`](api.md) under "Live voice agent tools (legacy)".
 
 For the full click-by-click setup (creating the agent, the system prompt, voice, LLM, testing and the React integration), see [`docs/elevenlabs-agent-setup.md`](elevenlabs-agent-setup.md).
 

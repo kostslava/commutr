@@ -1,9 +1,13 @@
 # ElevenLabs live voice agent: full setup guide
 
-A step-by-step guide to creating the Commutr mascot as an ElevenLabs live voice agent and connecting it to our backend. It is written so that someone with no other context (a person, or an AI agent driving a browser) can follow it from start to finish.
+> **Current design: Muta.** The live agent is **Muta**. The browser gets a signed link from `POST /api/companion/session` and runs Muta's **10 browser (client) tools** inside the app. It was configured by `npm run companion:setup` (see `COMPANION.md`). The current design is in **section 7** and in [`docs/agent-tools.md`](agent-tools.md#muta-browser-tools-current). Sections 1–6 and 8 describe the **original webhook design** (`/api/agent/*`, a Cloudflare tunnel, `AGENT_TOOL_SECRET`), which still exists in the backend but is **not used by the frontend**.
+>
+> ⚠️ **Do not run `npm run agent:setup`.** It updates the same agent ID and overwrites Muta: it renames the agent to "Commutr Mascot", makes it public with only `localhost` allowed, swaps the browser tools back to the 7 webhook tools and replaces Muta's prompt. Voice in the app would then stop working as designed. Don't run `companion:setup` either unless you mean to reconfigure the live agent.
+
+A step-by-step guide to creating the Commutr mascot as an ElevenLabs live voice agent and connecting it to our backend (the original webhook design; see the note above). It is written so that someone with no other context (a person, or an AI agent driving a browser) can follow it from start to finish.
 
 - The tool reference (exact fields and example responses) is [`docs/agent-tools.md`](agent-tools.md). This guide repeats everything needed, so you shouldn't need to switch files.
-- The backend contract is [`docs/api.md`](api.md), under "Live voice agent tools".
+- The backend contract is [`docs/api.md`](api.md): "Muta companion" for the current design, "Live voice agent tools (legacy)" for the webhook design.
 
 > **About accuracy.** This guide follows ElevenLabs' own documentation (links at the end), checked on 2026-11-07. The ElevenLabs dashboard changes often, and the docs don't name every button. Steps that couldn't be checked against the docs are marked **UNVERIFIED**: the idea is right, but the exact label or location may differ. When a label differs, look for the nearest equivalent. Don't skip the step.
 
@@ -12,6 +16,8 @@ A step-by-step guide to creating the Commutr mascot as an ElevenLabs live voice 
 ---
 
 ## 1. What the agent does, and why it exists
+
+> **Legacy (webhook design, not used by the app).** This section describes the original webhook agent. The live agent is Muta, which uses browser tools (section 7). Kept for reference.
 
 The Commutr mascot talks with the user in **live, two-way voice**: they speak, it answers out loud, and they can interrupt it like a normal conversation. ElevenLabs runs the whole voice loop: speech recognition, the LLM, the voice, and turn-taking.
 
@@ -45,6 +51,8 @@ User's browser (React app) ──voice──▶ ElevenLabs agent
 ---
 
 ## 2. Prerequisites
+
+> **Legacy (webhook design, not used by the app).** This section describes the original webhook agent. The live agent is Muta, which uses browser tools (section 7). Kept for reference.
 
 Do these in order before touching the ElevenLabs dashboard.
 
@@ -98,6 +106,8 @@ Sign up or sign in at [elevenlabs.io](https://elevenlabs.io). The free plan is e
 
 ## Set it up from the command line (recommended)
 
+> **Legacy, and do not run it now.** `agent:setup` overwrites Muta (see the warning at the top). `agent:verify` only checks the legacy `/api/agent/*` endpoints. `agent:test` runs its tests against the legacy webhook tool IDs in `state.json`, which are no longer attached to Muta, so its results are meaningless now, and every run costs ElevenLabs credits.
+
 The dashboard may only show a template browser, with no blank agent. Instead, a script creates or updates the whole agent through the ElevenLabs API: the name, first message, system prompt, LLM, voice, the 7 webhook tools and the allowlist. **Sections 3 to 5 then only explain what it set up**; you don't click through them.
 
 - **Config:** [`backend/elevenlabs/agent.json`](../backend/elevenlabs/agent.json) is the source of truth for the agent. It holds the prompt and first message (copied from section 4), the LLM (`gemini-3.5-flash`; the script stops if the plan refuses it), the premade voice **Jessica** (`cgSgspJ2msm6clMCkdW9`), the tools and the secret's **name**. It contains no secret values. Change the agent there, not in the dashboard, and re-run the script.
@@ -138,6 +148,8 @@ After setup, go to section 3.7 for the allowlist (the script sets `localhost`; a
 ---
 
 ## 3. Create the agent in the dashboard
+
+> **Legacy (webhook design, not used by the app).** This section describes the original webhook agent. The live agent is Muta, which uses browser tools (section 7). Kept for reference.
 
 ### 3.1 Find the agents product
 
@@ -211,6 +223,9 @@ Save or publish the agent *(the button label is UNVERIFIED)*. Find the **agent I
 
 ## 4. The system prompt (paste as is)
 
+> **Legacy (webhook design, not used by the app).** This section describes the original webhook agent. The live agent is Muta, which uses browser tools (section 7). Kept for reference.
+> Muta's live prompt is `MUTA_VOICE_PROMPT` in `backend/src/chat/muta.ts`, set by `companion:setup`, not the prompt below.
+
 Paste everything inside the box into the **System prompt** field.
 
 ```
@@ -265,6 +280,8 @@ Privacy and honesty
 ---
 
 ## 5. The 7 tools (server / webhook tools)
+
+> **Legacy (webhook design, not used by the app).** This section describes the original webhook agent. The live agent is Muta, which uses browser tools (section 7). Kept for reference.
 
 Add each tool on the agent: **Agent tab → Tools → Add tool → Webhook** *(the exact path is UNVERIFIED; the docs call these "webhook tools" or "server tools")*. These match the backend code in `backend/src/routes/agent.ts`.
 
@@ -411,6 +428,8 @@ curl -s -o /dev/null -w "%{http_code}\n" BASE/api/agent/status    # no header: s
 
 ## 6. Test checklist (dashboard test panel)
 
+> **Legacy (webhook design, not used by the app).** This section describes the original webhook agent. The live agent is Muta, which uses browser tools (section 7). Kept for reference.
+
 Open the agent's test conversation *(the quickstart calls it "Test AI agent"; the label is UNVERIFIED)*. It uses the real tools and your free minutes, so run through this list once, in order, rather than chatting freely.
 
 Expected results come from the backend's templates. Numbers depend on the demo data (user 1 is the demo user "Alex", eco score 98).
@@ -442,108 +461,80 @@ After the run:
 
 ## 7. Frontend integration (for the React teammate)
 
+> **Current design (Muta).** This section describes what the app actually does today, in `frontend/src/Companion.jsx`, `frontend/src/companionActions.js` and `frontend/src/useCompanionActions.js`, with the backend in `backend/src/routes/companion.ts`. The agent was configured for it by `npm run companion:setup` (`backend/scripts/companion-setup.ts`). **Do not run `npm run agent:setup`**: it overwrites Muta (see the warning at the top).
+
 ### 7.1 The SDK
 
-```
-npm install @elevenlabs/react
-```
+The app uses **`@elevenlabs/client`** (not `@elevenlabs/react`). It is imported on demand, only when a call starts:
 
-From ElevenLabs' React docs:
-- Wrap the part of the app that talks to the agent in a **`ConversationProvider`**. All conversation hooks must be used inside it.
-- Use the **`useConversation`** hook. Its callbacks are `onConnect`, `onDisconnect`, `onMessage`, `onError` and `onModeChange`. It returns `status` (`"disconnected" | "connecting" | "connected"`), `isSpeaking`, `isListening`, `mode`, `isMuted` and `setMuted`.
-- **Start:** `await conversation.startSession({ ... })`, which resolves to a `conversationId`.
-- **Stop:** `await conversation.endSession()`.
-
-A minimal sketch (adjust to the docs if names differ):
-
-```jsx
-import { ConversationProvider, useConversation } from '@elevenlabs/react';
-
-function Mascot() {
-  const conversation = useConversation({
-    onMessage: (m) => console.log('transcript/reply', m), // shape: see 7.4
-    onModeChange: (m) => console.log('mode', m),          // speaking / listening
-    onError: (e) => console.error(e),
-  });
-
-  async function start() {
-    await navigator.mediaDevices.getUserMedia({ audio: true }); // ask for the mic first (7.6)
-    await conversation.startSession({
-      agentId: import.meta.env.VITE_ELEVENLABS_AGENT_ID, // public agent (7.2)
-      // signedUrl: ... or conversationToken: ...       // private agent (7.2)
-      // dynamicVariables: { demo_user: '1' },           // optional (7.5)
-    });
-  }
-
-  return (
-    <>
-      <MascotAnimation speaking={conversation.isSpeaking} />
-      <button onClick={start} disabled={conversation.status !== 'disconnected'}>Talk</button>
-      <button onClick={() => conversation.endSession()}>Stop</button>
-    </>
-  );
-}
-
-export default function App() {
-  return (
-    <ConversationProvider>
-      <Mascot />
-    </ConversationProvider>
-  );
-}
+```js
+const { Conversation } = await import('@elevenlabs/client');
+const { signed_url } = await api('/companion/session', {});          // POST /api/companion/session
+const session = await Conversation.startSession({
+  signedUrl: signed_url,
+  connectionType: 'websocket',
+  dynamicVariables: { demo_user: '1' },
+  onConnect, onDisconnect, onError, onModeChange, onMessage, onInterruption,
+  onAgentToolRequest, onAgentToolResponse,
+  clientTools: { get_status, get_rewards, get_clubs, discover_places, navigate,
+                 plan_trip, start_trip, finish_trip, redeem_reward, get_route_safety },
+});
+// later: session.endSession(), session.setMicMuted(true|false), session.sendContextualUpdate('...')
 ```
 
-`connectionType` can be set explicitly. The docs say it defaults to WebRTC for voice, but don't list its values (UNVERIFIED), so leave it unset.
+- **Before starting**, the app asks for the microphone with `getUserMedia({ audio: true })` and stops the test stream (20 s timeout), then starts the session (20 s timeout).
+- **The tools are browser (client) tools:** ElevenLabs sends the tool call to the browser, the app runs it and returns the result. The list, and what each one does, is in [`docs/agent-tools.md`](agent-tools.md#muta-browser-tools-current).
+- **`onAgentToolResponse`** also updates the screen after some tool results: a planned trip is shown on the map, a redemption refreshes the wallet (`voiceResultAction` in `companionActions.js`).
+- **`sendContextualUpdate`** tells the agent which screen is open and whether a trip is active, and adds short style instructions at the start of each call.
+- The call survives tab changes, because Muta is mounted once outside the page transitions.
 
-### 7.2 Public agent or private agent (signed URL / token)
+### 7.2 Private agent, signed URL from our backend
 
-| | Public agent | Private agent (recommended) |
-|---|---|---|
-| How the app starts it | `startSession({ agentId })` | Our backend asks ElevenLabs for a short-lived credential with the ElevenLabs API key; the app gets only that |
-| Who can start a conversation | **Anyone** who has the agent ID, and it's visible in the frontend's code | Only our app, through our backend |
-| Risk | Every session uses **our** free minutes and LLM credits. A leaked ID or a reloading script can use up the month's allowance. | None beyond our own use |
+The agent is **private** (`platform_settings.auth.enable_auth: true`, empty allowlist, as set by `companion:setup`). Only our backend can start a conversation:
 
-**Recommendation: a private agent.** ElevenLabs offers two credentials, both fetched by a server with the ElevenLabs API key, never from the browser:
-- **Conversation token (WebRTC, our pick):** `GET https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=<AGENT_ID>` returns `{ "token": "…", "conversation_id": "…" }`. Then `startSession({ conversationToken: token })`. How long the token stays valid, and whether this endpoint needs the API key header, aren't stated on its docs page (UNVERIFIED; expect `xi-api-key`, as for signed URLs).
-- **Signed URL (WebSocket):** `GET https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=<AGENT_ID>` with header `xi-api-key` returns `{ "signed_url": "wss://…" }`. Then `startSession({ signedUrl })`. The URL must be used within **15 minutes**; a conversation that has started keeps going after that.
+1. The browser calls **`POST /api/companion/session`** (see [`docs/api.md`](api.md#post-apicompanionsession--signed-link-for-a-muta-voice-call--built)).
+2. The backend calls `GET https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=<AGENT_ID>` with its `ELEVENLABS_API_KEY` and returns `{ "signed_url": "wss://…" }`.
+3. The browser starts the session with that link over **WebSocket**. ElevenLabs says the link must be used within **15 minutes**; a started conversation keeps going after that.
 
-To make the agent private, turn on authentication for it *(the dashboard toggle is UNVERIFIED; in the API it's `platform_settings.auth.enable_auth = true`)*.
+So:
+- **No allowlist is needed**, including for a deployed frontend hostname. ElevenLabs advises against combining an allowlist with signed URLs.
+- **No tunnel and no `AGENT_TOOL_SECRET`** are needed: ElevenLabs never calls our backend for Muta's tools.
+- Errors: `503 voice_not_configured` (no key or agent ID on the server), `503 voice_unavailable`, `429 rate_limited` (4 a minute, 30 a day per user). The app then offers typing instead.
+- Every session request uses ElevenLabs quota, so don't call it in tests or loops.
 
-**Status: the backend endpoint is planned, not built.** It will be a separate backend task, for example `GET /api/agent/session`, which returns a fresh conversation token for the app. Until it exists:
-- keep the agent **public**, with the **Security tab allowlist** set to the frontend's hostnames (3.7);
-- don't share the agent ID;
-- end sessions when the mascot screen closes.
-
-ElevenLabs' docs say not to combine an allowlist and signed URLs on the same agent. When we switch to the private agent, remove the allowlist.
+*The public-agent option (`startSession({ agentId })`) and the conversation-token (WebRTC) option from the earlier version of this guide are not used.*
 
 ### 7.3 The agent ID
 
-It isn't a secret, but treat it as private while the agent is public. Put it in the frontend's env file, for example `VITE_ELEVENLABS_AGENT_ID` (the teammate decides the name), not hard-coded. **Never** put the ElevenLabs API key or `AGENT_TOOL_SECRET` in the frontend.
+- The browser **never** sees the agent ID. There is no `VITE_ELEVENLABS_AGENT_ID`.
+- The backend reads `ELEVENLABS_AGENT_ID` from `backend/.env` if it is set, otherwise `agent_id` in [`backend/elevenlabs/state.json`](../backend/elevenlabs/state.json).
+- **Never** put the ElevenLabs API key or `AGENT_TOOL_SECRET` in the frontend.
+- Muta's LLM and voice are not changed by `companion:setup` (it keeps whatever the agent already had). Check the ElevenLabs dashboard for the current values; this guide doesn't claim them.
 
 ### 7.4 Live transcript and the speaking state
 
-- **Speaking state for the mascot animation:** use `isSpeaking` (true while the agent talks), or `onModeChange` (speaking or listening).
-- **Transcript:** `onMessage` delivers the user's transcribed speech (tentative and final) and the agent's replies. The docs page doesn't describe the message object's fields (UNVERIFIED): log one message, check which field says who spoke and which holds the text, then render a chat-style list.
+- **Speaking state for the mascot animation:** the app uses `onModeChange` (`speaking` or `listening`), plus `onMessage`, `onAgentToolRequest` and `onInterruption` to show "thinking" and "listening".
+- **Transcript: not shown, by design.** During a voice call the app shows only a status label ("Listening…", "Thinking…", "Speaking…"). It doesn't render or keep the transcript (`COMPANION.md`). `onMessage` is only used to switch the mascot to "thinking" when the user has spoken.
 
 ### 7.5 Dynamic variables (optional)
 
-- Pass them at the start: `startSession({ agentId, dynamicVariables: { demo_user: '1' } })`. Values must be strings, numbers or booleans.
-- To act as another demo user, add the `X-Demo-User` header to all 7 tools with the value `{{demo_user}}` (type: dynamic variable).
-- In the dashboard, set a **test placeholder** for `demo_user` (for example `1`). Dashboard tests don't run start-up webhooks, so without a placeholder the header would be sent as the literal text `{{demo_user}}`, and the backend would answer 400.
+- The app passes `dynamicVariables: { demo_user: '1' }` at the start. Values must be strings, numbers or booleans.
+- **For Muta it has no effect on which user is used:** the browser tools call the app's normal endpoints, which always send `X-Demo-User: 1` (`frontend/src/api.js`). To use another demo user, the frontend's header would have to change.
+- *(Legacy webhook design only: the 7 webhook tools could send `X-Demo-User: {{demo_user}}`, with a test placeholder of `1` in the dashboard so dashboard tests don't send the literal text `{{demo_user}}`.)*
 - Never pass anything secret as a dynamic variable. (ElevenLabs' `secret__` variables exist for headers, but we use a Secret header instead.)
 
 ### 7.6 Microphone permission
 
 - Browsers only allow the mic over **HTTPS** or on `localhost`.
 - Explain why first ("so you can talk to the mascot"), then call `navigator.mediaDevices.getUserMedia({ audio: true })` before `startSession`.
-- If permission is refused, show a message and keep the text chat (`POST /api/chat`) available.
+- If permission is refused, show a message and keep typing available. In the app that's Muta's "Let's type" mode (`POST /api/companion/chat`); an unanswered permission prompt times out after 20 s.
 
 ### 7.7 Free-plan limits: rehearse sparingly
 
 From ElevenLabs' agents pricing page (2026-11-07): the **Free plan includes 15 minutes of agent calls and 4 concurrent calls**. Extra minutes cost money on paid plans, and Free has no commercial licence. LLM cost is billed separately or deducted from credits (the FAQ is inconsistent, UNVERIFIED). The general free plan has 10,000 credits a month.
 
 So:
-- test tools with `curl` first (5.9), which is free;
+- for the legacy webhook tools, test with `curl` first (5.9), which is free;
 - run the checklist in section 6 once;
 - keep rehearsals short, and end sessions you're not using;
 - keep the end-on-silence and max-duration limits from 3.6.
@@ -551,6 +542,8 @@ So:
 ---
 
 ## 8. Troubleshooting
+
+> **Legacy (webhook design, not used by the app).** This section describes the original webhook agent. The live agent is Muta, which uses browser tools (section 7). Kept for reference.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|

@@ -4,6 +4,8 @@ Owned by the backend (Shahmeer). The frontend agent must not edit this file. If 
 
 **Status: every endpoint is built.** Shapes of built endpoints only change after an announcement.
 
+> **Changed (2026-11-07):** added the five [Muta companion endpoints](#muta-companion-the-in-app-assistant) (`/api/companion/*`, added with the Muta PR #14). Corrected the transit rate to **12 points per km** (the code has used 12 since PR #14; this file said 3). The `/api/agent/*` webhook endpoints are now **legacy**: still built, but the frontend doesn't use them.
+
 ## Basics
 
 - Base URL (local dev): `http://localhost:8787`. The port can be changed with the `PORT` env var.
@@ -138,7 +140,7 @@ Errors: `404 not_found` · `409 trip_not_active` (already finished).
 
 - **`distance_km`** is the *verified* distance. It counts no impossible jumps and nothing faster than the mode allows, so a "walk" doesn't earn for a car stretch. Points with accuracy worse than 50 m are dropped, and movements under 10 m are treated as GPS jitter.
 - **`points_awarded`** = verified km × mode rate × confidence × the user's trust multiplier, rounded, then limited by the daily cap.
-  - Mode rates per km: walk 10, bike 6, scooter 4, transit 3, car 0.
+  - Mode rates per km: walk 10, bike 6, scooter 4, transit 12, car 0. (Transit includes a paid-fare incentive; the values live in `backend/src/scoring/config.ts`.)
   - **Daily cap: 200 points per Toronto calendar day.** `capped: true` means the cap cut this trip's points.
 - **`confidence`** is between 0 and 1, or `null` for car trips, which aren't checked. It starts at 1, and each check that fails subtracts its penalty and adds a flag:
 
@@ -532,9 +534,9 @@ The schedule data refreshes automatically every 24 hours.
 
 ---
 
-## Chatbot (the Commutr mascot)
+## Chatbot (`/api/chat`, the Community tab's "commutr-help" chat)
 
-The mascot answers questions about Commutr and getting around Kitchener-Waterloo, in text and voice.
+This chatbot answers questions about Commutr and getting around Kitchener-Waterloo, in text and voice. The app uses it in the Community tab. **The Muta assistant uses different endpoints:** see [Muta companion](#muta-companion-the-in-app-assistant).
 
 **How a message is answered:**
 - **General questions** ("how do points work") come from a built-in FAQ of about 90 entries, matched on the server with no AI call. These are instant, with `source: "faq"`.
@@ -659,7 +661,7 @@ Plans a green trip to a destination: walk, bike and direct GRT transit options, 
 - **Destination choice:** place-search results are ranked by how many of the requested words their name contains, ties broken by distance. So "Waterloo Public Library" picks Waterloo's library even when the search lists Kitchener's first. The computed answer uses the top result; Gemini sees them in that order.
 - **Cache:** for 5 minutes, the same user asking for the same destination from about the same place (within about 100 m) reuses Gemini's earlier choice and summary, with no Gemini call (`cached: true`). **The numbers are always recomputed** (next bus, minutes, points). A summary whose numbers no longer match is replaced by the computed one. Computed answers aren't cached. The cache is in memory only.
 
-**Limit per user:** 3 plans a minute and 30 a day, shared with `POST /api/agent/plan`. Cache hits count too. Over the limit returns `429 rate_limited` with `retry_after_sec`.
+**Limit per user:** 3 plans a minute and 30 a day, shared with `POST /api/agent/plan`, `POST /api/companion/plan` and `POST /api/companion/discover`. Cache hits count too. Over the limit returns `429 rate_limited` with `retry_after_sec`.
 
 ### `POST /api/plan` — **built**
 
@@ -756,9 +758,171 @@ Errors:
 
 ---
 
-## Live voice agent tools
+## Muta companion (the in-app assistant)
 
-The mascot's live voice agent runs on ElevenLabs. ElevenLabs' servers call `/api/agent/*` over HTTPS as tools. **These endpoints aren't for the frontend.** The exact tool definitions to paste into the ElevenLabs dashboard, and the tunnel setup, are in [`docs/agent-tools.md`](agent-tools.md).
+Muta is the mascot in the app, in text and in live voice. These endpoints are under `/api` and follow the normal [current user](#current-user-fake-auth) rule (`X-Demo-User`, default user 1). Code: `backend/src/routes/companion.ts`, `backend/src/chat/companion.ts`, `backend/src/chat/discover.ts`.
+
+**How voice works:** the browser asks `POST /api/companion/session` for a signed link, then talks to the ElevenLabs agent directly. The agent's tools are **browser (client) tools** that run inside the app and call the normal app endpoints below and in the rest of this file. ElevenLabs never calls our backend for Muta, so no tunnel and no `AGENT_TOOL_SECRET` are needed. Tool list: [`docs/agent-tools.md`](agent-tools.md#muta-browser-tools-current).
+
+**Per-user limits** (in memory, reset on restart):
+
+| Endpoint | Limit bucket | Limit |
+|---|---|---|
+| `POST /api/companion/chat` | text (shared with `POST /api/chat`) | 10 a minute, 100 a day |
+| `POST /api/companion/session` | voice (shared with `POST /api/chat/voice`) | 4 a minute, 30 a day |
+| `POST /api/companion/plan` | plan (shared with `/api/plan`, `/api/agent/plan`) | 3 a minute, 30 a day |
+| `POST /api/companion/discover` | plan (the **same** bucket as planning) | 3 a minute, 30 a day |
+| `GET /api/companion/account` | none | — |
+
+Over a limit returns `429 rate_limited`. **Known quirk:** unlike `/api/chat` and `/api/plan`, these 429 responses have **no** `retry_after_sec`.
+
+### `POST /api/companion/chat` — typed Muta chat — **built**
+
+Request:
+```json
+{
+  "message": "I'm bored. Where should I go?",
+  "history": [{ "role": "user", "text": "hi" }, { "role": "agent", "text": "Hey! What's the plan?" }],
+  "context": { "page": "Home", "activeTrip": null }
+}
+```
+
+- `message`: required, 1–2000 characters.
+- `history`: optional. Only the **last 6** items are used; each needs `role` `"user"` or `"agent"` and `text` of at most 4000 characters (others are dropped).
+- `context`: optional. `page` is one of `Home`, `Explore`, `Wallet`, `Rewards`, `Community` (anything else becomes `Home`); `activeTrip` is a mode or `null`.
+
+Response `200`:
+```json
+{
+  "reply": "Victoria Park is a nice walk from home. Want me to show the route?",
+  "source": "gemini",
+  "actions": [{ "type": "plan_trip", "destination": "Victoria Park", "mode": "walk" }]
+}
+```
+
+- Gemini (function calling, up to 3 tool rounds, 12 s) reads the user's status, rewards and clubs and can search places (`discover_places`). It never runs app actions itself: it **requests** them in `actions`, and the browser validates and runs them.
+- `actions`: at most 3. Each is one of:
+  - `{ "type": "navigate", "page": "Home" | "Explore" | "Wallet" | "Rewards" | "Community" }`
+  - `{ "type": "plan_trip", "destination": "...", "origin_name"?: "...", "mode"?: "walk" | "bike" | "transit" }`
+  - `{ "type": "start_trip", "mode": "walk" | "bike" | "scooter" | "transit" | "car" }`
+  - `{ "type": "finish_trip" }`
+  - `{ "type": "redeem_reward", "reward_id": 3 }`
+- **If Gemini fails** (no key, slow, over its limits, an error), the reply comes from the same logic as `POST /api/chat`: `{ "reply", "source": "faq" | "fallback" | "gemini", "suggestions": [...], "actions": [] }`. No actions are ever returned after a failure. Gemini problems never cause an error status.
+
+Errors: `400 validation_error` (missing or too long `message`) · `429 rate_limited`.
+
+### `POST /api/companion/plan` — plan a trip and preload the map — **built**
+
+Request: the same `destination` and starting point as [`POST /api/plan`](#post-apiplan--built): `destination` is a string or `{ "name", "lat", "lng" }`; the start is `origin_name`, **or** `origin_lat` + `origin_lng`, **or** nothing (saved home).
+
+```json
+{ "destination": "Waterloo Park", "origin_name": "University of Waterloo" }
+```
+
+The server resolves the origin and the destination first (5 s each), then runs the planner with those coordinates, so the numbers match the geometry the app draws.
+
+Response `200`: the `POST /api/plan` answer, plus:
+
+| Field | Meaning |
+|---|---|
+| `origin` | `home` \| `named` \| `given` |
+| `origin_name` | The start in words (as in `/api/plan`) |
+| `summary` | As in `/api/plan`, but "From your current location, …" is replaced by "From <origin_name>, …" |
+| `map_origin` | `{ "name", "lat", "lng" }`: where the app draws the start |
+| `map_destination` | `{ "name", "lat", "lng" }`: where the app draws the destination (the full search name) |
+| `attribution` | As in `/api/plan`, plus the Nominatim line when a search was used for the origin or destination |
+
+Errors. **Known quirk:** the statuses differ from `POST /api/plan`.
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `validation_error` | Body isn't an object, or `destination` is missing or invalid |
+| 400 | `no_origin` | No starting point and no saved home |
+| 400 | `conflict` | `origin_name` together with coordinates |
+| 400 | `invalid` | Bad `origin_name` (empty, over 120 characters) or bad coordinates |
+| 400 | `origin_not_found` | `origin_name` matches nothing in KW (`/api/plan` uses 404) |
+| 400 | `search_unavailable` | The place search failed while resolving the **origin** |
+| 503 | `destination_not_found` | Nothing in KW matches the destination (`/api/plan` uses 404) |
+| 503 | `search_unavailable` | The place search failed while resolving the **destination** |
+| *(as `/api/plan`)* | e.g. `too_far` | Errors from the planner itself pass through with their status |
+| 429 | `rate_limited` | Over the per-user plan limit |
+
+### `GET /api/companion/account` — status, clubs and rewards in one call — **built**
+
+Response `200`:
+```json
+{
+  "status": { "points": 3200, "eco_score": 98, "streak_days": 5, "longest_streak_days": 12, "active_today": false, "points_today": 0, "daily_cap": 200 },
+  "clubs": {
+    "clubs": [
+      { "club": "UW Walkers", "weekly_goal_steps": 150000, "club_steps_this_week": 92350, "my_steps_this_week": 42300, "progress_percent": 62, "goal_reached": false }
+    ]
+  },
+  "rewards": [
+    { "reward_id": 3, "title": "$25 Maple Loop Coffee card", "merchant": "Maple Loop Coffee", "points_cost": 2500, "min_eco_score": 95, "affordable": true, "locked": true, "redeemed_today": false, "points_needed": 0, "eco_needed": 13 }
+  ]
+}
+```
+
+- `clubs` is an object holding a `clubs` array (it's the chatbot's `get_clubs` tool result), not a bare array. Only clubs the user belongs to.
+- `rewards` lists every reward, with the same meaning as [`GET /api/rewards`](#get-apirewards--built) but flatter field names.
+- No errors beyond the usual `400 bad_demo_user`.
+
+### `POST /api/companion/session` — signed link for a Muta voice call — **built**
+
+Request: `{}` (the body is ignored).
+
+Response `200`, with `Cache-Control: no-store`:
+```json
+{ "signed_url": "wss://…" }
+```
+
+- The backend calls ElevenLabs' `get-signed-url` with its own `ELEVENLABS_API_KEY`. The browser never sees the key or the agent ID.
+- The agent ID is `ELEVENLABS_AGENT_ID` if set, otherwise `agent_id` in `backend/elevenlabs/state.json`.
+- Use the link at once with `Conversation.startSession({ signedUrl, connectionType: 'websocket' })`. ElevenLabs says a signed URL must be used within 15 minutes.
+- **Every call uses ElevenLabs quota.** Don't call it in a loop or in tests.
+
+Errors:
+
+| Status | `code` | When |
+|---|---|---|
+| 503 | `voice_not_configured` | No `ELEVENLABS_API_KEY`, or no agent ID |
+| 503 | `voice_unavailable` | ElevenLabs failed, timed out (10 s) or returned no `wss://` link |
+| 429 | `rate_limited` | Over the per-user voice limit |
+
+### `POST /api/companion/discover` — find real places in KW — **built**
+
+Request:
+```json
+{ "query": "cafes in Kitchener" }
+```
+
+`query`: required, 1–160 characters.
+
+Response `200`:
+```json
+{
+  "ok": true,
+  "places": [{ "name": "Some Cafe", "town": "Kitchener" }],
+  "summary": "These are mapped places in KW. Suggest one or two that suit the request, then offer to plan a route. Opening hours, prices and events have not been checked.",
+  "attribution": "© OpenStreetMap contributors (Nominatim)"
+}
+```
+
+- Searches Nominatim on the server (bounded to KW, 5 s).
+- `summary` is written for the model, not for display.
+- **Known quirk:** if the place search is down, the answer is still **`200`**, with `{ "ok": false, "summary": "Place search is unavailable right now. …" }`. Check `ok`.
+- **Known quirk:** it uses the **plan** limit bucket, so 3 searches in a minute also block trip planning for that minute.
+
+Errors: `400 validation_error` · `429 rate_limited`.
+
+---
+
+## Live voice agent tools (legacy)
+
+> **Legacy:** still built, but **not used by the frontend**. The live agent (Muta) now uses browser tools and `POST /api/companion/session`; see [Muta companion](#muta-companion-the-in-app-assistant).
+
+The original live voice agent design ran its tools on our server: ElevenLabs' servers call `/api/agent/*` over HTTPS. **These endpoints aren't for the frontend.** The exact tool definitions to paste into the ElevenLabs dashboard, and the tunnel setup, are in [`docs/agent-tools.md`](agent-tools.md).
 
 - **Auth:** the header `X-Agent-Secret` must match `AGENT_TOOL_SECRET` in `backend/.env`:
   - missing or wrong → `401 bad_agent_secret`;
@@ -780,7 +944,6 @@ The mascot's live voice agent runs on ElevenLabs. ElevenLabs' servers call `/api
 | POST | `/api/agent/trips/finish` | `{ confirm? }`. Finishes the active trip. With fewer than 5 GPS points it warns first *(built)* |
 | POST | `/api/agent/route-safety` | `{ destination }`. **Stub** for now: `available: false` *(built)* |
 
-**For the frontend:** when the agent starts a trip, the app should find it with `GET /api/trips?limit=1` (`status: "active"`) and send GPS points to it as usual.
 
 ---
 
@@ -790,5 +953,5 @@ The mascot's live voice agent runs on ElevenLabs. ElevenLabs' servers call `/api
 - Editing a saved location (`PATCH`). For now, delete it and add it again.
 - Claiming or issuing a club's group reward when the weekly goal is reached. `goal_reached` is shown, but nothing is issued.
 - Route safety ratings (Gemini rating routes from Mapillary photos). Coming in a later task; `POST /api/agent/route-safety` is a stub until then.
-- Street-by-street routing. The planner uses straight-line distances with a detour factor, and direct transit routes only.
+- Street-by-street routing. The planner uses straight-line distances with a detour factor, and direct transit routes only. (The frontend draws walk and bike route lines from the public Valhalla server, so the drawn line and the planner's minutes and km can differ.)
 - A place-search endpoint for the frontend. The planner searches on the server; the frontend may still call Nominatim directly for a map search box.
