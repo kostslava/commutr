@@ -1,0 +1,66 @@
+<template>
+  <style>
+    #journey{position:relative;width:1920px;height:1080px;overflow:hidden;color:#063c28;font-family:'Nunito',sans-serif}
+    #journey *{box-sizing:border-box}
+    #journey .journey-ground{position:absolute;inset:0;background:#fffdf1}
+    #journey .journey-sidewash{position:absolute;left:1100px;top:0;width:820px;height:1080px;background:#e4eacf}
+    #journey .journey-note{position:absolute;left:130px;top:96px;margin:0;font-size:24px;font-weight:700;color:#526b48}
+    #journey .journey-headline{position:absolute;left:130px;top:260px;width:820px;margin:0;font-family:'Lilita One','Nunito',sans-serif;font-size:104px;line-height:1.04;font-weight:400;letter-spacing:-1px}
+    #journey .journey-caption{position:absolute;left:134px;top:542px;width:730px;margin:0;font-size:36px;line-height:1.35;font-weight:700}
+    #journey .journey-footer{position:absolute;left:134px;bottom:100px;width:770px;margin:0;font-size:24px;line-height:1.35;color:#526b48}
+    #journey .journey-rule{position:absolute;left:134px;top:701px;width:250px;height:8px;border-radius:4px;background:#bddc7b;transform-origin:left center}
+    #journey .journey-phone-position{position:absolute;left:1180px;top:70px;width:356.43px;height:755px}
+    #journey .journey-phone{position:relative;width:356.43px;height:755px;overflow:hidden;border-radius:36px;transform-origin:left top}
+    #journey .journey-state{position:absolute;inset:0;width:356.43px;height:755px}
+    #journey .journey-state img{position:absolute;left:-200.28px;top:-22px;width:757px;height:837px;max-width:none}
+    #journey .journey-ring{position:absolute;left:0;top:0;width:58px;height:58px;border:3px solid #063c28;box-shadow:0 0 0 5px #bddc7b;border-radius:50%;pointer-events:none}
+  </style>
+  <div id="journey" data-composition-id="journey" data-start="0" data-duration="28" data-width="1920" data-height="1080">
+    <div class="journey-ground"></div><div class="journey-sidewash"></div>
+    <p class="journey-note">Real app · demo account</p>
+    <h1 id="journey-title-home" class="journey-headline">Where are we going?</h1>
+    <h1 id="journey-title-route" class="journey-headline">Pick your route.</h1>
+    <h1 id="journey-title-compare" class="journey-headline">Compare before you go.</h1>
+    <p id="journey-caption" class="journey-caption">Walking, cycling, or transit — in one place.</p>
+    <div id="journey-rule" class="journey-rule"></div>
+    <p id="journey-footer" class="journey-footer">Demo transit timing is illustrative.</p>
+    <div id="journey-phone-position" class="journey-phone-position"><div id="journey-phone" class="journey-phone">
+      <div id="journey-home" class="journey-state"><img src="assets/home.png" alt="Real Commutr home screen"/></div>
+      <div id="journey-search" class="journey-state"><img src="assets/search-full.png" alt="Real destination suggestions"/></div>
+      <div id="journey-bike" class="journey-state"><img src="assets/bike.png" alt="Real bike route and estimate"/></div>
+      <div id="journey-walk" class="journey-state"><img src="assets/walk.png" alt="Real walking route and estimate"/></div>
+      <div id="journey-transit" class="journey-state"><img src="assets/transit.png" alt="Real labelled demo transit estimate"/></div>
+      <div id="journey-ring" class="journey-ring"></div>
+    </div></div>
+  </div>
+  <script>
+    (function(){
+      window.__timelines=window.__timelines||{};
+      var tl=gsap.timeline({paused:true});
+      var states=[['#journey-home',0,4],['#journey-search',4,8],['#journey-bike',8,14],['#journey-walk',14,20],['#journey-transit',20,28]];
+      states.forEach(function(s){
+        tl.fromTo(s[0],{opacity:0},{opacity:1,duration:.01,ease:'none'},s[1]);
+        if(s[2]<28)tl.to(s[0],{opacity:0,duration:.01,ease:'none'},s[2]);
+      });
+      tl.fromTo('#journey-title-home',{opacity:0,y:34},{opacity:1,y:0,duration:.35,ease:'power4.out'},0);
+      tl.to('#journey-title-home',{opacity:0,y:-18,duration:.2,ease:'power1.in'},4.8);
+      tl.fromTo('#journey-title-route',{opacity:0,y:34},{opacity:1,y:0,duration:.35,ease:'power4.out'},5);
+      tl.to('#journey-title-route',{opacity:0,y:-18,duration:.2,ease:'power1.in'},17.8);
+      tl.fromTo('#journey-title-compare',{opacity:0,y:34},{opacity:1,y:0,duration:.35,ease:'power4.out'},18);
+      tl.fromTo('#journey-caption',{opacity:0,y:30},{opacity:1,y:0,duration:.35,ease:'expo.out'},.2);
+      tl.fromTo('#journey-rule',{scaleX:0},{scaleX:1,duration:.5,ease:'power4.out'},.45);
+      tl.fromTo('#journey-phone-position',{x:-6},{x:6,duration:27.5,ease:'none'},0);
+      tl.fromTo('#journey-phone',{scale:1.22},{scale:1.235,duration:27.5,ease:'none'},0);
+      tl.fromTo('#journey-ring',{x:286,y:248,opacity:0,scale:1.25},{x:286,y:248,opacity:1,scale:1,duration:.3,ease:'expo.out'},2);
+      tl.to('#journey-ring',{opacity:0,duration:.2},3.5);
+      tl.fromTo('#journey-ring',{x:59,y:197,opacity:0,scale:1.2},{x:59,y:197,opacity:1,scale:1,duration:.3,ease:'expo.out',immediateRender:false},10);
+      tl.to('#journey-ring',{opacity:0,duration:.2},11.2);
+      tl.fromTo('#journey-ring',{x:158,y:197,opacity:0,scale:1.2},{x:158,y:197,opacity:1,scale:1,duration:.3,ease:'expo.out',immediateRender:false},15.7);
+      tl.to('#journey-ring',{opacity:0,duration:.2},17);
+      tl.fromTo('#journey-ring',{x:257,y:197,opacity:0,scale:1.2},{x:257,y:197,opacity:1,scale:1,duration:.3,ease:'expo.out',immediateRender:false},21.5);
+      tl.to('#journey-ring',{opacity:0,duration:.2},23);
+      tl.fromTo('#journey-footer',{opacity:0},{opacity:1,duration:.35,ease:'none'},20);
+      window.__timelines['journey']=tl;
+    })();
+  </script>
+</template>
