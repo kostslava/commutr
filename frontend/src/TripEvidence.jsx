@@ -2,12 +2,13 @@ import React,{useEffect,useRef,useState} from 'react';
 import {Camera,Check,X,LoaderCircle} from 'lucide-react';
 export default function TripEvidence({tracker,distanceKm}){
  const [photo,setPhoto]=useState(null),[preview,setPreview]=useState(''),[error,setError]=useState('');
- const input=useRef();
+ const input=useRef(),submitting=useRef(false);
  useEffect(()=>{if(!photo){setPreview('');return}const url=URL.createObjectURL(photo);setPreview(url);return()=>URL.revokeObjectURL(url)},[photo]);
  const saved=tracker.trip.evidence_status==='submitted';
- function choose(e){const file=e.target.files[0];e.target.value='';if(!file)return;setError('');if(!['image/jpeg','image/png','image/webp'].includes(file.type)){setError('Choose a JPG, PNG, or WebP photo.');return}if(file.size>5*1024*1024){setError('Choose a photo under 5 MB.');return}setPhoto(file)}
+ async function submit(file){if(submitting.current)return;submitting.current=true;setError('');try{if(await tracker.uploadEvidence(file,{demo:true,...(distanceKm>0?{distance_km:distanceKm}:{})}))setPhoto(null)}catch(e){setError(e.message||'Couldn’t add that photo. Try again.')}finally{submitting.current=false}}
+ function choose(e){const file=e.target.files[0];e.target.value='';if(!file)return;setError('');if(!['image/jpeg','image/png','image/webp'].includes(file.type)){setError('Choose a JPG, PNG, or WebP photo.');return}if(file.size>5*1024*1024){setError('Choose a photo under 5 MB.');return}setPhoto(file);submit(file)}
  return <div className="trip-evidence"><input ref={input} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Trip evidence photo" hidden onChange={choose}/>
- {photo?<div className="evidence-preview"><img src={preview} alt="Selected trip evidence"/><span>{photo.name}</span><button disabled={tracker.busy} aria-label="Remove selected photo" onClick={()=>setPhoto(null)}><X size={16}/></button><button disabled={tracker.busy} onClick={async()=>{if(await tracker.uploadEvidence(photo,{demo:true,...(distanceKm>0?{distance_km:distanceKm}:{})}))setPhoto(null)}}>{tracker.busy?<><LoaderCircle size={14} className="spinner"/>Uploading…</>:'Upload photo'}</button>{tracker.busy&&<div className="evidence-upload-progress" role="progressbar" aria-label="Uploading photo"><span/></div>}</div>:<button className="add-evidence" disabled={tracker.busy} onClick={()=>input.current.click()}>{saved?<Check size={16}/>:<Camera size={16}/>} {saved?'Photo uploaded · replace':'Add trip photo'}</button>}
+ {photo?<div className="evidence-preview"><img src={preview} alt="Selected trip evidence"/><span>{photo.name}</span><button disabled={tracker.busy} aria-label="Remove selected photo" onClick={()=>setPhoto(null)}><X size={16}/></button><button disabled={tracker.busy} onClick={()=>submit(photo)}>{tracker.busy?<><LoaderCircle size={14} className="spinner"/>Uploading…</>:'Upload photo'}</button>{tracker.busy&&<div className="evidence-upload-progress" role="progressbar" aria-label="Uploading photo"><span/></div>}</div>:<button className="add-evidence" disabled={tracker.busy} onClick={()=>input.current.click()}>{saved?<Check size={16}/>:<Camera size={16}/>} {saved?'Photo uploaded · replace':'Add trip photo'}</button>}
  {error&&<p role="alert">{error}</p>}
  </div>;
 }
