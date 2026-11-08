@@ -8,5 +8,12 @@
     "start_trip": "tool_8701m6w8q17ge3kvdzy3fvsq6pfe",
     "finish_trip": "tool_0701m6w8q2bees48359kwyja8z4g",
     "get_route_safety": "tool_1801m6w8q3nwes89p1vajymjxh97"
+  },
+  "test_ids": {
+    "plan to Waterloo Park": "test_5301m6wagdv7e0jaqfgdds57q5pc",
+    "plan from the University of Waterloo": "test_9901m6waghn3e0qrgh78255ttd99",
+    "what can I afford": "test_0401m6wagn0mecpr0z2asgzc2w67",
+    "what is my streak": "test_0401m6wagrc1ek1tf3tr03jnbczf",
+    "redeem the coffee card asks first": "test_4401m6wagvsnfrtv0hm3qg2jjbmw"
   }
 }

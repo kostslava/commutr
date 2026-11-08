@@ -1,43 +1,87 @@
 {
-  "_comment": "Text-only tool-call tests for the Commutr Mascot, run by `npm run agent:test` (backend/scripts/elevenlabs-agent.ts). Each checks the agent's next turn makes a real, structured tool call. Costs ElevenLabs credits, no call minutes.",
+  "_comment": "Text-only tool-call tests for the Commutr Mascot, run by `npm run agent:test` (backend/scripts/elevenlabs-agent.ts). Each checks the agent's next turn makes a real, structured tool call. Costs ElevenLabs credits, no call minutes. Parameter paths are relative to the tool call details (path_params, query_params, body), so webhook body fields are \"body.<name>\"; inferred from stored test results, not documented.",
   "tests": [
     {
       "name": "plan to Waterloo Park",
-      "history": [{ "role": "user", "message": "How do I get to Waterloo Park?" }],
+      "history": [
+        {
+          "role": "user",
+          "message": "How do I get to Waterloo Park?"
+        }
+      ],
       "tool": "plan_trip",
-      "params": [{ "path": "destination", "description": "Names Waterloo Park." }]
+      "params": [
+        {
+          "path": "body.destination",
+          "description": "Names Waterloo Park."
+        }
+      ]
     },
     {
       "name": "plan from the University of Waterloo",
       "history": [
-        { "role": "user", "message": "How do I get to Waterloo Park?" },
-        { "role": "agent", "message": "From your saved home, biking takes about 19 minutes and earns about 28 points." },
-        { "role": "user", "message": "How long from the University of Waterloo?" }
+        {
+          "role": "user",
+          "message": "How do I get to Waterloo Park?"
+        },
+        {
+          "role": "agent",
+          "message": "From your saved home, biking takes about 19 minutes and earns about 28 points."
+        },
+        {
+          "role": "user",
+          "message": "How long from the University of Waterloo?"
+        }
       ],
       "tool": "plan_trip",
       "params": [
-        { "path": "destination", "description": "Names Waterloo Park." },
-        { "path": "origin_name", "description": "Names the University of Waterloo." }
+        {
+          "path": "body.destination",
+          "description": "Names Waterloo Park."
+        },
+        {
+          "path": "body.origin_name",
+          "description": "Names the University of Waterloo."
+        }
       ]
     },
     {
       "name": "what can I afford",
-      "history": [{ "role": "user", "message": "What can I afford?" }],
+      "history": [
+        {
+          "role": "user",
+          "message": "What can I afford?"
+        }
+      ],
       "tool": "get_rewards",
       "params": []
     },
     {
       "name": "what is my streak",
-      "history": [{ "role": "user", "message": "What's my streak?" }],
+      "history": [
+        {
+          "role": "user",
+          "message": "What's my streak?"
+        }
+      ],
       "tool": "get_status",
       "params": []
     },
     {
       "name": "redeem the coffee card asks first",
-      "history": [{ "role": "user", "message": "Redeem the coffee card" }],
+      "history": [
+        {
+          "role": "user",
+          "message": "Redeem the coffee card"
+        }
+      ],
       "tool": "get_rewards",
       "params": [],
-      "forbid": { "tool": "redeem_reward", "path": "confirm", "value": true }
+      "forbid": {
+        "tool": "redeem_reward",
+        "path": "confirm",
+        "value": true
+      }
     }
   ]
 }

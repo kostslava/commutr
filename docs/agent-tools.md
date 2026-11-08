@@ -68,7 +68,7 @@ Example response:
 ```json
 {
   "ok": true,
-  "summary": "You have 1240 points, an eco score of 98 and a 6 day streak. You've earned 35 of today's 200 points.",
+  "summary": "You have 1240 points, an eco score of 98 and a 6-day streak. You've earned 35 of today's 200 points.",
   "points": 1240,
   "eco_score": 98,
   "streak_days": 6,

@@ -196,7 +196,7 @@ In the **Agent** tab, find the LLM / model selector *(location UNVERIFIED)* and 
 ### 3.6 Turn-taking and interruptions
 
 - **Keep the defaults** for turn-taking, turn timeout and interruptions. Users should be able to interrupt the mascot (barge-in) in normal conversation.
-- If there's an **end-call-on-silence** or **max conversation duration** setting, set something short to protect the free minutes: for example end after about 20 s of silence, and a maximum of about 5 minutes. *(These settings' names and locations are UNVERIFIED.)*
+- **End the call on silence, and cap its length,** to protect the free minutes. `npm run agent:setup` sets both from `agent.json`: `silence_end_call_timeout_secs: 30` (API `conversation_config.turn.silence_end_call_timeout`; ElevenLabs' default `-1` never ends a silent call) and `max_duration_seconds: 300`. *(The dashboard labels for these are UNVERIFIED.)*
 - Per-tool interruption settings come in step 5.
 
 ### 3.7 Security tab (until the private agent exists)
@@ -226,6 +226,9 @@ Using tools
 - Call tools only through function calling. Never write a tool name, parentheses, parameter names or code in your reply.
 - Never say "tool" or "function" to the user.
 - After a tool returns, speak only its "summary" (or a shorter natural version of it, keeping every number exactly).
+- Never state a number or fact that isn't in a tool result.
+- If a tool result has no summary or no data, say you couldn't get that right now and offer to try again.
+- Never guess points, eco score, streaks, minutes, distances or rewards.
 
 Tools and numbers
 - Never invent or guess numbers (points, eco score, streak, prices, minutes, km, bus times). Always get them from a tool.
@@ -414,7 +417,7 @@ Expected results come from the backend's templates. Numbers depend on the demo d
 
 | # | Say | Tool it should call | What you should hear (roughly) |
 |---|---|---|---|
-| 1 | "How many points do I have?" | `get_status` | "You have … points, an eco score of 98 and … streak. You've earned … of today's 200 points." (The backend currently says "a 6 days streak", a known grammar bug that will be fixed in code.) |
+| 1 | "How many points do I have?" | `get_status` | "You have … points, an eco score of 98 and a …-day streak (or "no streak going yet"). You've earned … of today's 200 points." |
 | 2 | "What rewards can I get?" | `get_rewards` | "You can redeem … rewards now, like … The closest one to unlock is …" |
 | 3 | "Redeem the free coffee." | `get_rewards` if needed, then `redeem_reward` **without** confirm | "Free coffee at Maple Loop Coffee costs … points. Should I redeem it?" with **no** points spent yet |
 | 4 | "Yes, go ahead." | `redeem_reward` with `confirm: true` | "Done! You redeemed … Your code is CMTR-…, and you have … points left." |

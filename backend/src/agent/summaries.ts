@@ -10,7 +10,7 @@ const list = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export function statusSummary(s: UserStatus): string {
-  const streak = s.streak.current_days > 0 ? `a ${plural(s.streak.current_days, 'day')} streak` : 'no streak going yet';
+  const streak = s.streak.current_days > 0 ? `a ${s.streak.current_days}-day streak` : 'no streak going yet'; // "a 1-day streak", "a 5-day streak"
   return `You have ${plural(s.points, 'point')}, an eco score of ${s.eco_score} and ${streak}. You've earned ${s.points_today} of today's ${s.daily_cap} points.`;
 }
 

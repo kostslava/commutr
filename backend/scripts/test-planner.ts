@@ -497,6 +497,18 @@ async function mocked() {
     r = await agent(main, 'GET', '/status');
     const db1 = main.db.prepare('SELECT points, eco_score FROM users WHERE id = 1').get() as { points: number; eco_score: number };
     check(c, 'status: default user 1, real numbers, spoken summary', r.status === 200 && r.json.ok && r.json.points === db1.points && r.json.eco_score === db1.eco_score && r.json.summary.includes(String(db1.points)), r.json?.summary);
+    // Streak wording: "a 1-day streak", "a 5-day streak", "no streak going yet".
+    addUser(main.db, 7950, 'Streak words', { points: 120, eco_score: 90 });
+    const todayToronto = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(new Date());
+    const setStreak = (n: number) => main.db.prepare('INSERT INTO streaks (user_id, current_days, longest_days, last_active_date) VALUES (7950, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET current_days = excluded.current_days, longest_days = excluded.longest_days, last_active_date = excluded.last_active_date').run(n, Math.max(n, 1), todayToronto);
+    const streakWords: string[] = [];
+    for (const n of [1, 5]) {
+      setStreak(n);
+      streakWords.push((await agent(main, 'GET', '/status', { user: 7950 })).json?.summary ?? '');
+    }
+    main.db.prepare('DELETE FROM streaks WHERE user_id = 7950').run();
+    streakWords.push((await agent(main, 'GET', '/status', { user: 7950 })).json?.summary ?? '');
+    check(c, 'status summary: "a 1-day streak", "a 5-day streak", "no streak going yet"', streakWords[0]!.includes('a 1-day streak') && streakWords[1]!.includes('a 5-day streak') && streakWords[2]!.includes('no streak going yet') && !streakWords.some((w) => /days streak/.test(w)), streakWords.map((w) => w.match(/(a \S+ streak|no streak going yet)/)?.[0]).join(' / '));
     r = await agent(main, 'GET', '/status', { user: 2 });
     const db2 = main.db.prepare('SELECT points FROM users WHERE id = 2').get() as { points: number };
     check(c, 'status: X-Demo-User picks the user', r.json?.points === db2.points);

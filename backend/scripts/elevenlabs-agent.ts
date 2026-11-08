@@ -3,7 +3,8 @@
 //
 //   npm run agent:setup -- --tunnel https://<words>.trycloudflare.com    (or TUNNEL_URL=...)
 //   npm run agent:verify -- --tunnel https://<words>.trycloudflare.com
-//   npm run agent:test                  text-only tool-call tests on the live agent (costs credits, no call minutes)
+//   npm run agent:test [-- --only "name,name"] [--max-credits N] [--total-credits N]
+//                                       text-only tool-call tests on the live agent (costs credits, no call minutes)
 //
 // setup: re-runnable. Finds the tools and the agent by name (and by the ids in
 //   backend/elevenlabs/state.json) and updates them; creates only what's missing. Run it
@@ -43,6 +44,8 @@ type Config = {
   llm_fallback: string | null;
   voice: { voice_id: string; name: string };
   max_duration_seconds: number;
+  /** End the call after this many seconds without the user speaking (ElevenLabs default -1 = never). */
+  silence_end_call_timeout_secs: number;
   allowlist: string[];
   secret_name: string;
   tool_response_timeout_secs: number;
@@ -121,6 +124,7 @@ function agentBody(toolIds: string[], llm: string) {
       },
       tts: { voice_id: cfg.voice.voice_id },
       conversation: { max_duration_seconds: cfg.max_duration_seconds },
+      turn: { silence_end_call_timeout: cfg.silence_end_call_timeout_secs },
     },
     platform_settings: { auth: { enable_auth: false, allowlist: cfg.allowlist.map((hostname) => ({ hostname })) } },
   };
@@ -208,6 +212,7 @@ async function setup() {
   console.log(`\nagent "${agent.name}": ${action}`);
   console.log(`  agent_id: ${agentId}`);
   console.log(`  LLM: ${a.prompt?.llm}   language: ${a.language}   voice: ${agent.conversation_config?.tts?.voice_id}`);
+  console.log(`  silence end-call timeout: ${agent.conversation_config?.turn?.silence_end_call_timeout} s   max duration: ${agent.conversation_config?.conversation?.max_duration_seconds} s`);
   console.log(`  tools attached: ${(a.prompt?.tool_ids ?? []).length}/${cfg.tools.length}`);
   console.log(`  allowlist: ${JSON.stringify((agent.platform_settings?.auth?.allowlist ?? []).map((x: any) => x.hostname))}   auth: ${agent.platform_settings?.auth?.enable_auth}`);
   console.log(`  dashboard (link format UNVERIFIED): https://elevenlabs.io/app/agents/agents/${agentId}`);
@@ -281,13 +286,27 @@ async function runAgentTests() {
   if (!KEY) throw new Error('ELEVENLABS_API_KEY is not set in backend/.env');
   const state = loadState();
   if (!state.agent_id || !state.tool_ids) throw new Error('Run agent:setup first (no agent_id/tool_ids in state.json)');
-  const tests = JSON.parse(readFileSync(TESTS_PATH, 'utf8')).tests as AgentTest[];
   const maxArg = process.argv.indexOf('--max-credits');
   const maxCredits = maxArg > 0 ? Number(process.argv[maxArg + 1]) : 200;
+  // --total-credits N: before each further test, stop if the credits so far plus one more test
+  // (estimated as the most expensive one so far) would pass N.
+  const totalArg = process.argv.indexOf('--total-credits');
+  const totalCredits = totalArg > 0 ? Number(process.argv[totalArg + 1]) : Infinity;
+  const onlyArg = process.argv.indexOf('--only');
+  const only = onlyArg > 0 ? process.argv[onlyArg + 1]!.split(',').map((x) => x.trim().toLowerCase()) : null;
+  const all = JSON.parse(readFileSync(TESTS_PATH, 'utf8')).tests as AgentTest[];
+  const tests = only ? all.filter((t) => only.includes(t.name.toLowerCase())) : all;
+  if (only && tests.length !== only.length) throw new Error(`--only: unknown test name(s). Names: ${all.map((t) => t.name).join(', ')}`);
+  let maxSeen = 0;
   const testIds = { ...(state.test_ids ?? {}) };
   let total = 0;
 
   for (const [i, t] of tests.entries()) {
+    if (i > 0 && total + maxSeen > totalCredits) {
+      console.log(`\nSTOPPED before "${t.name}": ${total} credits used so far, and another test (~${maxSeen}) would pass the ${totalCredits}-credit total.`);
+      process.exitCode = 1;
+      break;
+    }
     const body = {
       name: `Commutr: ${t.name}`,
       type: 'tool',
@@ -319,6 +338,7 @@ async function runAgentTests() {
     const tr = (run.test_runs ?? [])[0] ?? {};
     const credits = Number(tr.credits_used ?? 0);
     total += credits;
+    maxSeen = Math.max(maxSeen, credits);
     const turns: any[] = tr.agent_responses ?? [];
     const calls = turns.flatMap((x) => x.tool_calls ?? []);
     const callText = calls.map((c: any) => `${c.tool_name ?? c.name}(${String(c.params_as_json ?? JSON.stringify(c.params ?? c.parameters ?? {})).slice(0, 160)})`).join('; ') || 'none';
@@ -338,7 +358,9 @@ async function runAgentTests() {
     const structured = calls.length > 0;
     const ok = structured && !leaked && !forbidden;
     console.log(`\n[${i + 1}/${tests.length}] "${t.history.at(-1)!.message}"`);
-    console.log(`  platform result: ${tr.status} (${tr.condition_result?.result ?? 'n/a'})${tr.condition_result?.rationale ? `: ${String(tr.condition_result.rationale).slice(0, 200)}` : ''}`);
+    const why = tr.condition_result?.rationale;
+    const reason = !why ? '' : typeof why === 'string' ? why : [why.summary, ...(why.messages ?? [])].filter(Boolean).join(' | ');
+    console.log(`  platform result: ${tr.status} (${tr.condition_result?.result ?? 'n/a'})${reason ? `: ${reason.slice(0, 300)}` : ''}`);
     console.log(`  structured tool call: ${structured ? 'yes' : 'NO'} -> ${callText}`);
     if (said) console.log(`  agent text: ${said.slice(0, 200)}`);
     console.log(`  tool call written as text: ${leaked ? 'YES (bad)' : 'no'}${t.forbid ? ` | ${t.forbid.tool} with ${t.forbid.path}=${JSON.stringify(t.forbid.value)}: ${forbidden ? 'YES (bad)' : 'no'}` : ''}`);
