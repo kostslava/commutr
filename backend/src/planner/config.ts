@@ -6,6 +6,12 @@ const env = process.env;
 
 /** Whole request, from arrival to response (geocoding, Gemini, fallback). */
 export const PLAN_BUDGET_MS = 8_000;
+/**
+ * The same for POST /api/companion/plan (Muta), counted from arrival and including the
+ * origin and destination look-ups. Shorter so a voice answer never stalls: Gemini still
+ * runs whenever enough time is left (see plan.ts), else the computed answer comes sooner.
+ */
+export const COMPANION_PLAN_BUDGET_MS = 6_000;
 /** Kept back from the budget so the computed fallback always has time to run. */
 export const FALLBACK_RESERVE_MS = 400;
 /** Max wait for Nominatim inside one plan. */
@@ -72,6 +78,13 @@ export const nominatimBaseUrl = () => process.env.NOMINATIM_BASE_URL || 'https:/
 export const NOMINATIM_USER_AGENT = 'Commutr/0.1 (hackathon demo)';
 /** Nominatim's usage policy: at most 1 request per second. A little margin on top. */
 export const NOMINATIM_MIN_INTERVAL_MS = 1_100;
+/** Boot warm-up (low priority): at most one search this often... */
+export const BACKGROUND_INTERVAL_MS = Number(env.GEOCODE_BACKGROUND_INTERVAL_MS || 3_000);
+/** ...and only when no user search started this recently... */
+export const BACKGROUND_QUIET_MS = Number(env.GEOCODE_BACKGROUND_QUIET_MS || 3_000);
+/** ...checked this often; after this long waiting it goes ahead anyway (still 1 per second). */
+export const BACKGROUND_POLL_MS = 200;
+export const BACKGROUND_MAX_WAIT_MS = 60_000;
 export const GEOCODE_CACHE_MS = 24 * 60 * 60_000;
 /** Places pre-loaded by npm run geocode:warm (src/planner/places-warm.ts) stay this long. */
 export const GEOCODE_WARM_MS = 30 * 24 * 60 * 60_000;

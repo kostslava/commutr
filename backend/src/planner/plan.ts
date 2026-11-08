@@ -208,9 +208,12 @@ function decisionResponse(place: Place, options: PlanOption[], d: Decision, allo
 
 const attributionFor = (usedSearch: boolean) => [GRT_ATTRIBUTION, ...(usedSearch ? [P.OSM_ATTRIBUTION] : [])];
 
-export async function plan(db: DB, userId: number, body: Record<string, unknown>): Promise<PlanResponse | PlanError> {
-  const started = Date.now();
-  const deadline = started + P.PLAN_BUDGET_MS;
+/** `startedAt`/`budgetMs` let a caller that did work first (the companion plan) share one deadline. */
+export type PlanBudget = { startedAt?: number; budgetMs?: number };
+
+export async function plan(db: DB, userId: number, body: Record<string, unknown>, budget: PlanBudget = {}): Promise<PlanResponse | PlanError> {
+  const started = budget.startedAt ?? Date.now();
+  const deadline = started + (budget.budgetMs ?? P.PLAN_BUDGET_MS);
   const left = () => deadline - Date.now();
 
   const dest: DestinationInput | null = parseDestination(body.destination);

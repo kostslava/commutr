@@ -7,6 +7,8 @@ Owned by the backend (Shahmeer). The frontend agent must not edit this file. If 
 > **Changed (2026-11-07):** added the five [Muta companion endpoints](#muta-companion-the-in-app-assistant) (`/api/companion/*`, added with the Muta PR #14). Corrected the transit rate to **12 points per km** (the code has used 12 since PR #14; this file said 3). The `/api/agent/*` webhook endpoints are now **legacy**: still built, but the frontend doesn't use them.
 >
 > **Changed (2026-11-08):** added [`POST /api/companion/route-safety`](#post-apicompanionroute-safety--street-photo-safety-rating-for-a-demo-route--built): Gemini street-photo safety ratings for 4 precomputed demo routes (Mapillary imagery, CC BY-SA 4.0).
+>
+> **Changed (2026-11-08, later):** limits for a public demo, where every visitor is demo user 1. The plan limit is now **10 a minute, 300 a day**. [`POST /api/companion/discover`](#post-apicompaniondiscover--find-real-places-in-kw--built) has **its own** limit (10 a minute, 300 a day) and no longer uses planning slots. Every `/api/companion/*` 429 now has `retry_after_sec` and a `Retry-After` header. [`POST /api/companion/plan`](#post-apicompanionplan--plan-a-trip-and-preload-the-map--built) has a **6 s** budget from arrival (look-ups included), so its computed fallback comes sooner; Gemini still runs when there's time. The boot place warm-up now runs at low priority and never delays a user's search.
 
 ## Basics
 
@@ -657,13 +659,15 @@ Plans a green trip to a destination: walk, bike and direct GRT transit options, 
   - When live predictions work, routes with no bus in the next hour are left out.
 - **Points estimates** use the real scoring formula: `points_km × mode rate × 1.0 confidence × your trust`, rounded, then limited by what's left of today's 200 cap (`points_capped: true`).
   - For transit, `points_km` is the ride only, because a transit trip must start and end near a stop. **Tell the user to start the transit trip at the stop.**
-- **If Gemini fails, is slow or is over its limits,** the answer is computed entirely on the server (`source: "computed"`). It has the same options, a rule-based recommendation and a template summary. The whole request takes at most about 8 s.
+- **If Gemini fails, is slow or is over its limits,** the answer is computed entirely on the server (`source: "computed"`). It has the same options, a rule-based recommendation and a template summary. The whole request takes at most about 8 s (`POST /api/companion/plan`: about 6 s, see below).
 - **Privacy:** the origin stays on the server. Gemini sees only place ids, public place names, GRT stop names and the computed numbers. A saved location is described as "your home", "your saved home" or "your saved place", never by its label. The starting point reaches Gemini only as a name (`origin_name`), never as coordinates. Only the destination and `origin_name` texts are sent to Nominatim (the OpenStreetMap search).
 
 - **Destination choice:** place-search results are ranked by how many of the requested words their name contains, ties broken by distance. So "Waterloo Public Library" picks Waterloo's library even when the search lists Kitchener's first. The computed answer uses the top result; Gemini sees them in that order.
 - **Cache:** for 5 minutes, the same user asking for the same destination from about the same place (within about 100 m) reuses Gemini's earlier choice and summary, with no Gemini call (`cached: true`). **The numbers are always recomputed** (next bus, minutes, points). A summary whose numbers no longer match is replaced by the computed one. Computed answers aren't cached. The cache is in memory only.
 
-**Limit per user:** 3 plans a minute and 30 a day, shared with `POST /api/agent/plan`, `POST /api/companion/plan` and `POST /api/companion/discover`. Cache hits count too. Over the limit returns `429 rate_limited` with `retry_after_sec`.
+**Limit per user:** 10 plans a minute and 300 a day, shared with `POST /api/agent/plan` and `POST /api/companion/plan` (not with `POST /api/companion/discover`, which has its own limit). Cache hits count too. Over the limit returns `429 rate_limited` with `retry_after_sec` and a `Retry-After` header.
+
+**This limit doesn't guard the Gemini quota; the provider ceilings do.** Gemini runs only when the per-minute and per-day ceiling for the chat model has room for a whole plan (up to 4 calls). Otherwise the plan is still `200`, with `source: "computed"`. Typed chat, transcription and the planner share that ceiling.
 
 ### `POST /api/plan` — **built**
 
@@ -673,7 +677,7 @@ Request:
 ```
 
 - `destination`, required, is one of:
-  - **a string** (max 200 characters). It's matched first against your saved locations (`"home"`, or a label like `"campus"`), then the demo merchants, then a place search limited to Kitchener-Waterloo. Cambridge, Guelph and anything else outside KW aren't found (`404 destination_not_found`). Common places, and ION stations and the Kitchener GO station from the GRT stops data, are pre-loaded by `npm run geocode:warm`;
+  - **a string** (max 200 characters). It's matched first against your saved locations (`"home"`, or a label like `"campus"`), then the demo merchants, then a place search limited to Kitchener-Waterloo. Cambridge, Guelph and anything else outside KW aren't found (`404 destination_not_found`). Common places, and ION stations and the Kitchener GO station from the GRT stops data, are pre-loaded by `npm run geocode:warm`; in production the server also loads them at boot, **at low priority**: at most one search every 3 s, only when no user search is waiting or started in the last 3 s, so the warm-up never delays a user's search (a user waits at most about 1.1 s for one warm-up search already running).
   - **or a place** `{ "name": "...", "lat": 43.46, "lng": -80.52 }`, for example from a map tap.
 - **The starting point** is one of these, never both kinds together (that's a `400`):
   - `origin_name` (optional): a place name, resolved like `destination` (saved places, demo merchants, the warmed cache, then the KW place search);
@@ -772,12 +776,15 @@ Muta is the mascot in the app, in text and in live voice. These endpoints are un
 |---|---|---|
 | `POST /api/companion/chat` | text (shared with `POST /api/chat`) | 10 a minute, 100 a day |
 | `POST /api/companion/session` | voice (shared with `POST /api/chat/voice`) | 4 a minute, 30 a day |
-| `POST /api/companion/plan` | plan (shared with `/api/plan`, `/api/agent/plan`) | 3 a minute, 30 a day |
-| `POST /api/companion/discover` | plan (the **same** bucket as planning) | 3 a minute, 30 a day |
+| `POST /api/companion/plan` | plan (shared with `/api/plan`, `/api/agent/plan`) | 10 a minute, 300 a day |
+| `POST /api/companion/discover` | discover (its own bucket) | 10 a minute, 300 a day |
 | `GET /api/companion/account` | none | — |
 | `POST /api/companion/route-safety` | safety | 20 a minute, 200 a day (429 includes `retry_after_sec`) |
 
-Over a limit returns `429 rate_limited`. **Known quirk:** unlike `/api/chat` and `/api/plan`, these 429 responses have **no** `retry_after_sec`.
+Over a limit returns `429 rate_limited` with `retry_after_sec` (seconds until a retry can succeed) and the same value in a `Retry-After` header:
+```json
+{ "error": { "code": "rate_limited", "message": "Please wait a moment before planning another trip." }, "retry_after_sec": 42 }
+```
 
 ### `POST /api/companion/chat` — typed Muta chat — **built**
 
@@ -822,7 +829,9 @@ Request: the same `destination` and starting point as [`POST /api/plan`](#post-a
 { "destination": "Waterloo Park", "origin_name": "University of Waterloo" }
 ```
 
-The server resolves the origin and the destination first (5 s each), then runs the planner with those coordinates, so the numbers match the geometry the app draws.
+The server resolves the origin and the destination first (each place search up to 2.5 s), then runs the planner with those coordinates, so the numbers match the geometry the app draws.
+
+**Time budget: about 6 s from arrival,** shared by the look-ups and the planner (`COMPANION_PLAN_BUDGET_MS`; `/api/plan` keeps 8 s). Gemini still plans whenever at least 1.5 s is left after 0.4 s kept back for the computed answer. Otherwise, or if Gemini is slow, the answer is computed (`source: "computed"`), with the same options and map points.
 
 Response `200`: the `POST /api/plan` answer, plus:
 
@@ -848,7 +857,7 @@ Errors. **Known quirk:** the statuses differ from `POST /api/plan`.
 | 503 | `destination_not_found` | Nothing in KW matches the destination (`/api/plan` uses 404) |
 | 503 | `search_unavailable` | The place search failed while resolving the **destination** |
 | *(as `/api/plan`)* | e.g. `too_far` | Errors from the planner itself pass through with their status |
-| 429 | `rate_limited` | Over the per-user plan limit |
+| 429 | `rate_limited` | Over the per-user plan limit (with `retry_after_sec` and `Retry-After`) |
 
 ### `GET /api/companion/account` — status, clubs and rewards in one call — **built**
 
@@ -915,9 +924,9 @@ Response `200`:
 - Searches Nominatim on the server (bounded to KW, 5 s).
 - `summary` is written for the model, not for display.
 - **Known quirk:** if the place search is down, the answer is still **`200`**, with `{ "ok": false, "summary": "Place search is unavailable right now. …" }`. Check `ok`.
-- **Known quirk:** it uses the **plan** limit bucket, so 3 searches in a minute also block trip planning for that minute.
+- **Limit:** its own bucket, 10 searches a minute and 300 a day per user. It doesn't use planning slots. Nominatim is still asked at most once a second for the whole server.
 
-Errors: `400 validation_error` · `429 rate_limited`.
+Errors: `400 validation_error` · `429 rate_limited` with `retry_after_sec` and a `Retry-After` header.
 
 ### `POST /api/companion/route-safety` — street-photo safety rating for a demo route — **built**
 

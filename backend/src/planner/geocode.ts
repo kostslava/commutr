@@ -50,18 +50,50 @@ function shortName(r: { name?: string; display_name?: string; address?: Record<s
   return [...new Set(parts.map((x) => x.trim()))].join(', ').slice(0, 120);
 }
 
-// One request at a time, spaced by NOMINATIM_MIN_INTERVAL_MS.
+// One request at a time, spaced by NOMINATIM_MIN_INTERVAL_MS. User searches book the next
+// slot. Background searches (the boot warm-up) never book ahead of users: they start only
+// when no user search is queued and none started recently, so a user waits at most for
+// one background request that already started.
 let nextSlot = 0;
+let lastUserSearch = 0;
+let lastBackground = 0;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Wait for a background slot. After P.BACKGROUND_MAX_WAIT_MS it goes ahead anyway, so the warm-up always finishes. */
+async function backgroundSlot(): Promise<void> {
+  const giveUpAt = Date.now() + P.BACKGROUND_MAX_WAIT_MS;
+  for (;;) {
+    const now = Date.now();
+    const free = now >= nextSlot && now - lastUserSearch >= P.BACKGROUND_QUIET_MS && now - lastBackground >= P.BACKGROUND_INTERVAL_MS;
+    if (free || now >= giveUpAt) {
+      const start = Math.max(now, nextSlot);
+      nextSlot = start + P.NOMINATIM_MIN_INTERVAL_MS;
+      lastBackground = start;
+      if (start > now) await sleep(start - now);
+      return;
+    }
+    await sleep(P.BACKGROUND_POLL_MS);
+  }
+}
 
 export type GeocodeOutcome = { ok: true; results: GeoResult[]; cached: boolean } | { ok: false; reason: 'timeout' | 'error' | 'no_time' };
 
-/** One Nominatim request within the KW box (waits for its 1-per-second slot). No cache. */
-async function search(query: string, timeoutMs: number): Promise<{ ok: true; results: GeoResult[]; outside: number } | { ok: false; reason: 'timeout' | 'error' | 'no_time' }> {
-  const now = Date.now();
-  const waitMs = Math.max(0, nextSlot - now);
-  if (waitMs >= timeoutMs - 300) return { ok: false, reason: 'no_time' };
-  nextSlot = Math.max(now, nextSlot) + P.NOMINATIM_MIN_INTERVAL_MS;
-  if (waitMs) await new Promise((r) => setTimeout(r, waitMs));
+/**
+ * One Nominatim request within the KW box (waits for its 1-per-second slot). No cache.
+ * `background`: lower priority (see backgroundSlot); `timeoutMs` then covers only the request.
+ */
+async function search(query: string, timeoutMs: number, background = false): Promise<{ ok: true; results: GeoResult[]; outside: number } | { ok: false; reason: 'timeout' | 'error' | 'no_time' }> {
+  let waitMs = 0;
+  if (background) {
+    await backgroundSlot();
+  } else {
+    const now = Date.now();
+    lastUserSearch = now;
+    waitMs = Math.max(0, nextSlot - now);
+    if (waitMs >= timeoutMs - 300) return { ok: false, reason: 'no_time' };
+    nextSlot = Math.max(now, nextSlot) + P.NOMINATIM_MIN_INTERVAL_MS;
+    if (waitMs) await sleep(waitMs);
+  }
 
   const v = P.KW_VIEWBOX;
   const url = new URL('/search', P.nominatimBaseUrl());
@@ -106,6 +138,8 @@ export async function geocode(query: string, timeoutMs: number): Promise<Geocode
 
 /** Fresh search for npm run geocode:warm (no cache read). Same slot and User-Agent rules. */
 export const warmSearch = (query: string) => search(query, 15_000);
+/** The same at low priority, for the warm-up at server boot: never delays a user search. */
+export const backgroundWarmSearch = (query: string) => search(query, 15_000, true);
 
 /** Store a pre-loaded place under `key` (what users say) for P.GEOCODE_WARM_MS. */
 export function storeWarm(key: string, results: GeoResult[]) {

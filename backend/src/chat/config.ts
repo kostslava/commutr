@@ -83,8 +83,18 @@ if (ceilingMultiplier !== 1) for (const c of Object.values(CEILINGS)) Object.ass
 export const USER_LIMITS = {
   text: { perMinute: 10, perDay: 100 },
   voice: { perMinute: 4, perDay: 30 },
-  /** Trip plans (POST /api/plan and /api/agent/plan share this). Each plan makes several Gemini calls. */
-  plan: { perMinute: 3, perDay: 30 },
+  /**
+   * Trip plans (POST /api/plan, /api/agent/plan and /api/companion/plan share this). Sized
+   * for a public demo where every visitor is demo user 1. Gemini quota is protected by
+   * CEILINGS above, not by this: a plan only uses Gemini when the ceiling has room for a
+   * whole plan, otherwise it answers with the computed plan (200, source "computed").
+   */
+  plan: { perMinute: 10, perDay: 300 },
+  /**
+   * Place search (POST /api/companion/discover): Nominatim and its cache only, no Gemini.
+   * Nominatim stays at 1 request a second for the whole server (planner/geocode.ts).
+   */
+  discover: { perMinute: 10, perDay: 300 },
   /** Route safety lookups (POST /api/companion/route-safety): a file read, no provider calls. */
   safety: { perMinute: 20, perDay: 200 },
 };

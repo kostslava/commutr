@@ -25,7 +25,7 @@ All calls go through the official `@google/genai` SDK on the backend (`backend/s
    - `get_points_estimate`: the points the user would earn for a mode, from the real scoring formula, their trust multiplier and what's left of the daily cap.
 3. **One final call with structured output** (a response schema): which `place_id`, the `recommendation`, the `order` of the modes, a short eco note per mode, and a 1–2 sentence spoken `summary`.
 4. **The backend validates the answer.** The minutes, km, points and next bus in the response always come from step 1. If Gemini's summary contains a number that isn't in the tool results, the computed summary replaces it.
-5. **Computed fallback.** If Gemini fails, takes longer than the 8 s budget, or the quota has no room for a whole plan, the response is the computed answer with `source: "computed"`. The app works the same either way.
+5. **Computed fallback.** If Gemini fails, takes longer than the budget (8 s for the Map screen, 6 s from arrival for Muta's `POST /api/companion/plan`, look-ups included), or the quota has no room for a whole plan, the response is the computed answer with `source: "computed"`. The app works the same either way.
 6. Gemini's decision is cached for 5 minutes; the numbers are always recomputed.
 
 ## 2. Muta text chat: function calling over the user's real data, returning app actions
@@ -75,9 +75,12 @@ These are built and tested in the backend, but **the current frontend doesn't us
 - **Per-user limits:**
   - chat: 10 a minute, 100 a day;
   - voice: 4 a minute, 30 a day;
-  - planning and place discovery: 3 a minute, 30 a day.
+  - planning: 10 a minute, 300 a day;
+  - place discovery: 10 a minute, 300 a day, a separate limit from planning;
+  - every 429 says when to retry (`retry_after_sec` and a `Retry-After` header).
+- **The per-user limits don't guard the Gemini quota; the provider ceilings do.** Every visitor to the public demo is demo user 1, so the per-user limits are sized for a crowd. A plan uses Gemini only when the ceiling has room for all of its calls, and is computed otherwise.
 - **Numbers come from code, not from the model.** Answers are checked for numbers that aren't in the tool results.
-- **Tests run against a mocked Gemini.** The planner suite has 167 checks (166 passed on 2026-11-08; the "daily cap flagged" check failed), chat 62, route safety 15, and the companion suite covers function calls, history, account reads, action validation and privacy.
+- **Tests run against a mocked Gemini.** The planner suite has 182 checks (all passed on 2026-11-08), chat 62, route safety 15, and the companion suite covers function calls, history, account reads, action validation and privacy.
 
 ## Not built
 
