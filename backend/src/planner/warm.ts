@@ -1,5 +1,6 @@
 // Resolving one entry of the warm list (src/planner/places-warm.ts), for
-// npm run geocode:warm. Two sources:
+// npm run geocode:warm. Three sources:
+//   fixed:     known coordinates from src/demoPlaces.ts (no network).
 //   gtfs:      a GRT stop or ION station from the local stops file (no network,
 //              exact names). ION platforms ("- Northbound"/"- Southbound") are merged
 //              into one station at their midpoint.
@@ -15,8 +16,8 @@ import { rankResults } from './places.js';
 import type { WarmPlace } from './places-warm.js';
 
 export type WarmOutcome =
-  | { ok: true; via: 'gtfs' | 'nominatim'; result: GeoResult }
-  | { ok: false; via: 'gtfs' | 'nominatim'; reason: string };
+  | { ok: true; via: 'fixed' | 'gtfs' | 'nominatim'; result: GeoResult }
+  | { ok: false; via: 'fixed' | 'gtfs' | 'nominatim'; reason: string };
 
 /** Station platforms more than this far apart are treated as different places. */
 const MAX_STATION_SPREAD_M = 500;
@@ -51,6 +52,13 @@ function passes(entry: WarmPlace, r: GeoResult): boolean {
 
 /** Resolve one entry and store it (under its key and aliases, 30 days). Never throws. */
 export async function warmOne(entry: WarmPlace, stopsByFeed: Stop[][]): Promise<WarmOutcome> {
+  if (entry.fixed) {
+    const result: GeoResult = { ...entry.fixed };
+    if (!P.inKwArea(result.lat, result.lng)) return { ok: false, via: 'fixed', reason: 'outside the KW area' };
+    storeWarm(entry.key, [result]);
+    for (const a of entry.aliases ?? []) storeWarm(a, [result]);
+    return { ok: true, via: 'fixed', result };
+  }
   if (entry.stop) {
     const r = stationFromStops(entry.stop, stopsByFeed);
     if ('error' in r) return { ok: false, via: 'gtfs', reason: r.error };
