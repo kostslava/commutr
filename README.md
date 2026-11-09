@@ -2,6 +2,8 @@
 
 <img src="docs/screenshots/muta.png" alt="Muta, the Commutr mascot" width="120">
 
+<br>
+
 <img alt="2nd place at CommuniHacks" src="https://img.shields.io/badge/2nd%20place-CommuniHacks-C0C0C0?style=for-the-badge&labelColor=6E6E6E">
 
 # Commutr
