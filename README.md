@@ -6,6 +6,8 @@
 
 **A little greener, every journey.**
 
+🏆 **2nd place at the hackathon.**
+
 Earn points for walking, cycling and taking transit around Kitchener-Waterloo,<br>
 and talk to Muta, a voice mascot that moves the app for you.
 
@@ -51,33 +53,7 @@ Commutr is a mobile-first web app (an installable PWA) for Kitchener-Waterloo th
 
 **Muta**, the app's mascot, can be typed to or talked to. It answers questions about your account, finds real places, plans trips onto the map, starts and finishes trips and redeems rewards, all through the same code paths your taps use.
 
-Hackathon tracks: **[Best use of the Gemini API](docs/track-gemini.md)** · **[Best use of ElevenLabs](docs/track-elevenlabs.md)**
-
-## ✨ Built with Gemini
-
-Gemini decides, orders and explains. **Every number a user sees (minutes, km, points, next bus) is computed by our backend**, and answers are checked for numbers that aren't in the tool results. Full write-up: [`docs/track-gemini.md`](docs/track-gemini.md).
-
-- **Trip planner with function calling over live data.** Gemini calls four tools that read our real data: matching places, walk / bike / transit options, the next live GRT arrivals, and a points estimate from the real scoring formula. It then makes one final call with **structured output** (a response schema). If Gemini fails, is slow (8 s budget; 6 s for Muta) or the quota has no room, a computed answer comes back with `source: "computed"`, so the app works the same either way.
-- **Muta's text chat turns words into checked app actions.** Gemini reads your status, rewards and clubs through tools, and can *request* actions (`navigate`, `plan_trip`, `start_trip`, `finish_trip`, `redeem_reward`). The backend checks them and the browser runs them through the app's own navigation, map and GPS tracker.
-- **Distance-aware place discovery.** "A walk of about 2 km, where can I go?" finds real places through OpenStreetMap search and sorts them by how close the walk is to 2 km, using the same walk estimate as the planner. Gemini gets names and rounded distances, never coordinates.
-- **Route safety from Gemini vision.** Gemini rated 4 demo walking routes once, from Mapillary street-level photos (taken 2016 to 2024): lighting, sidewalks, traffic and crossings. It's an estimate from old photos, not a safety guarantee, and it's shown with the CC BY-SA 4.0 attribution.
-
-| Use | Model |
-|---|---|
-| Trip planner, Community help chat, Muta text chat | `gemini-3.5-flash-lite` |
-| Route safety ratings (offline script, image input) | `gemini-3.5-flash-lite` |
-
-The backend also has Gemini voice transcription and fallback speech, which the current app doesn't use (see the write-up).
-
-## 🎙️ Built with ElevenLabs
-
-Muta is an **ElevenLabs agent you can talk to in a live, two-way voice call**, and its tools run inside the app, so a spoken request moves the app. Full write-up: [`docs/track-elevenlabs.md`](docs/track-elevenlabs.md).
-
-- **Live voice with `@elevenlabs/client`.** "Let's talk" asks for the microphone, then starts a WebSocket session. The call stays connected while you change tabs or minimise the panel.
-- **A private agent.** The browser never sees the ElevenLabs key or the agent ID: the backend hands it a short-lived signed link from `POST /api/companion/session`.
-- **10 browser tools that move the app:** status, rewards, clubs, place discovery, navigation, trip planning (draws the route on the map), start and finish a trip, redeem a reward, and route safety (shows the rating card on the map).
-- **A spoken yes before anything that spends points or ends a trip.** Finishing a trip or redeeming a reward first returns a question with the real reward and price; it runs only after a new "yes" from you. A flag from the model can't skip it.
-- **The mascot follows the call.** Muta's animation switches between idle, listening, thinking and speaking, and the agent is told which screen you're on.
+Gemini powers trip planning, text chat and route safety ratings. ElevenLabs powers Muta’s live, two-way voice conversations and in-app voice actions.
 
 ## 🗺️ Tour of the app
 
@@ -224,7 +200,6 @@ Then follow [`docs/local-phone-run.md`](docs/local-phone-run.md): start the back
 - [`docs/local-phone-run.md`](docs/local-phone-run.md): run locally and open on a phone
 - [`docs/agent-tools.md`](docs/agent-tools.md): Muta's browser tools
 - [`docs/elevenlabs-agent-setup.md`](docs/elevenlabs-agent-setup.md): the ElevenLabs agent and the frontend voice integration (section 7)
-- [`docs/track-gemini.md`](docs/track-gemini.md), [`docs/track-elevenlabs.md`](docs/track-elevenlabs.md): track write-ups
 - [`COMPANION.md`](COMPANION.md): Muta's design notes
 
 ## Team
