@@ -1,3 +1,9 @@
+<div align="center">
+
+<img alt="2nd place at CommuniHacks" src="https://img.shields.io/badge/2nd%20place-CommuniHacks-C0C0C0?style=for-the-badge&labelColor=6E6E6E">
+
+</div>
+
 # Commutr
 
 **A little greener, every journey.** Commutr is a mobile-first web app for Kitchener-Waterloo that rewards people for replacing car trips with walking, cycling, scooting or transit. You record a trip, the backend verifies it, and you earn points to spend on rewards at local businesses. Streaks, clubs and an eco score make it a habit. Muta, the app's mascot, can be typed to or talked to and can drive the app for you.
